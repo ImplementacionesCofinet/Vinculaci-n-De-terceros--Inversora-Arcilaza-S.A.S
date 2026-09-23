@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vinculación de terceros – Inversora Arcilaza S.A.S.</title>
+  <link rel="stylesheet" href="/shared/estilos.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <!-- Ingreso -->
+  <div id="login" class="login" hidden>
+    <form id="form-login" class="login-caja">
+      <div class="logo grande" aria-hidden="true">IA</div>
+      <h1>Vinculación de terceros</h1>
+      <p class="ayuda">Inversora Arcilaza S.A.S. · Área contable</p>
+      <div id="login-error"></div>
+      <div class="campo"><label for="l-usuario">Usuario</label><input id="l-usuario" name="usuario" autocomplete="username" required></div>
+      <div class="campo"><label for="l-password">Contraseña</label><input id="l-password" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn" type="submit">Ingresar</button>
+    </form>
+  </div>
+
+  <!-- Aplicativo -->
+  <div id="app" class="app" hidden>
+    <aside class="lateral" id="lateral">
+      <div class="lateral-marca">
+        <div class="logo" aria-hidden="true">IA</div>
+        <div><b>Vinculación de terceros</b><small>Inversora Arcilaza S.A.S.</small></div>
+      </div>
+      <nav>
+        <a href="#/inicio" data-ruta="inicio">Panel general</a>
+        <div class="nav-titulo">Base de datos</div>
+        <a href="#/lista/cliente" data-ruta="lista/cliente">Clientes <span class="contador" data-contador="cliente"></span></a>
+        <a href="#/lista/proveedor" data-ruta="lista/proveedor">Proveedores <span class="contador" data-contador="proveedor"></span></a>
+        <a href="#/lista/contratista" data-ruta="lista/contratista">Contratistas <span class="contador" data-contador="contratista"></span></a>
+        <a href="#/lista/empleado" data-ruta="lista/empleado">Empleados <span class="contador" data-contador="empleado"></span></a>
+        <div class="nav-titulo">Gestión</div>
+        <a href="#/nuevo" data-ruta="nuevo">+ Registro manual</a>
+        <a href="#/usuarios" data-ruta="usuarios" data-solo-admin hidden>Usuarios</a>
+        <a href="#/cuenta" data-ruta="cuenta">Mi cuenta</a>
+        <a href="/formulario/" target="_blank" rel="noopener">Abrir formulario público ↗</a>
+      </nav>
+      <div class="lateral-pie">
+        <span id="usuario-nombre"></span>
+        <button class="btn btn-sec btn-sm" id="btn-salir">Salir</button>
+      </div>
+    </aside>
+    <div class="principal">
+      <header class="barra">
+        <button class="btn btn-sec btn-sm menu-movil" id="btn-menu" aria-label="Menú">☰</button>
+        <div>
+          <div class="barra-sobre">Vinculación de terceros – Inversora Arcilaza S.A.S.</div>
+          <div class="barra-titulo">Registro de proveedores, contratistas y clientes</div>
+        </div>
+      </header>
+      <main id="vista" class="vista"></main>
+    </div>
+  </div>
+
+  <dialog id="modal" class="modal"></dialog>
+  <div id="aviso" class="aviso" hidden></div>
+
+  <script src="/shared/campos.js"></script>
+  <script src="/shared/render.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registro de terceros – Inversora Arcilaza S.A.S.</title>
+  <link rel="stylesheet" href="/shared/estilos.css">
+  <link rel="stylesheet" href="formulario.css">
+</head>
+<body>
+  <header class="encabezado">
+    <div class="contenedor">
+      <div class="marca">
+        <div class="logo" aria-hidden="true">IA</div>
+        <div>
+          <div class="sobre">Inversora Arcilaza S.A.S.</div>
+          <h1>Vinculación de terceros</h1>
+          <p>Registro de proveedores, contratistas y clientes</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="contenedor">
+    <form id="formulario" novalidate>
+      <fieldset class="seccion">
+        <legend><span class="num">1</span>Tipo de vinculación</legend>
+        <p class="ayuda">Seleccione cómo se vincula con Inversora Arcilaza S.A.S.</p>
+        <div class="tipos" role="radiogroup">
+          <label class="tipo"><input type="radio" name="categoria" value="cliente" required>
+            <span><b>Cliente</b><small>Compra nuestros productos o servicios</small></span></label>
+          <label class="tipo"><input type="radio" name="categoria" value="proveedor">
+            <span><b>Proveedor</b><small>Suministra bienes o servicios</small></span></label>
+          <label class="tipo"><input type="radio" name="categoria" value="contratista">
+            <span><b>Contratista</b><small>Ejecuta obras o servicios por contrato</small></span></label>
+        </div>
+      </fieldset>
+
+      <div id="secciones"></div>
+
+      <fieldset class="seccion" id="seccion-autorizacion" hidden>
+        <legend><span class="num" id="num-autorizacion"></span>Autorizaciones y declaraciones</legend>
+        <div id="autorizaciones"></div>
+      </fieldset>
+
+      <div id="errores"></div>
+
+      <div class="acciones" id="acciones" hidden>
+        <button type="submit" class="btn btn-grande" id="btn-enviar">Enviar registro</button>
+      </div>
+    </form>
+
+    <section id="exito" class="seccion exito" hidden>
+      <div class="exito-icono" aria-hidden="true">✓</div>
+      <h2>¡Registro enviado!</h2>
+      <p>Su información fue recibida correctamente por el área contable de Inversora Arcilaza S.A.S.</p>
+      <p class="consecutivo">Número de radicado: <b id="exito-consecutivo"></b></p>
+      <p class="ayuda">Guarde este número para cualquier consulta. Nos pondremos en contacto si se requiere información adicional.</p>
+      <button class="btn btn-sec" onclick="location.reload()">Registrar otro tercero</button>
+    </section>
+  </main>
+
+  <footer class="pie">© Inversora Arcilaza S.A.S. · La información suministrada es tratada conforme a la Ley 1581 de 2012.</footer>
+
+  <script src="/shared/campos.js"></script>
+  <script src="/shared/render.js"></script>
+  <script src="formulario.js"></script>
+</body>
+</html>

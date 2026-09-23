@@ -1,0 +1,34 @@
+.contenedor { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+.encabezado { background: linear-gradient(135deg, var(--primario), var(--primario-2)); color: #fff; padding: 28px 0 60px; border-bottom: 4px solid var(--acento); }
+.marca { display: flex; align-items: center; gap: 16px; }
+.logo { width: 56px; height: 56px; border-radius: 12px; background: var(--acento); color: var(--primario); display: grid; place-items: center; font-weight: 800; font-size: 20px; flex-shrink: 0; }
+.sobre { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
+.encabezado h1 { font-size: 26px; margin: 2px 0; }
+.encabezado p { margin: 0; opacity: .9; }
+main.contenedor { margin-top: -36px; padding-bottom: 32px; }
+
+.tipos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.tipo { position: relative; margin: 0; cursor: pointer; }
+.tipo input { position: absolute; opacity: 0; }
+.tipo span { display: block; height: 100%; padding: 14px 16px; border: 2px solid var(--borde); border-radius: 10px; background: #fff; transition: border-color .15s, background .15s; }
+.tipo b { display: block; font-size: 16px; color: var(--primario); }
+.tipo small { display: block; font-weight: 400; color: var(--suave); font-size: 12.5px; margin-top: 2px; }
+.tipo input:checked + span { border-color: var(--primario); background: #eef6f5; box-shadow: inset 0 0 0 1px var(--primario); }
+.tipo input:focus-visible + span { box-shadow: 0 0 0 3px rgba(22,89,90,.25); }
+
+.acciones { display: flex; justify-content: flex-end; }
+.btn-grande { padding: 13px 28px; font-size: 16px; }
+
+.exito { text-align: center; padding: 40px 24px; }
+.exito-icono { width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%; background: #dcfce7; color: var(--ok); display: grid; place-items: center; font-size: 32px; font-weight: 700; }
+.exito h2 { color: var(--primario); margin-bottom: 8px; }
+.consecutivo { font-size: 18px; }
+.consecutivo b { color: var(--primario); letter-spacing: .04em; }
+
+.pie { text-align: center; color: var(--suave); font-size: 12.5px; padding: 8px 16px 28px; }
+
+@media (max-width: 640px) {
+  .tipos { grid-template-columns: 1fr; }
+  .encabezado h1 { font-size: 21px; }
+  .acciones .btn { width: 100%; }
+}

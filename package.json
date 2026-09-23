@@ -1,0 +1,33 @@
+{
+  "name": "vinculacion-terceros-arcilaza",
+  "version": "1.0.0",
+  "description": "Vinculación de terceros - Inversora Arcilaza S.A.S. Registro de proveedores, contratistas, clientes y empleados",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning server.js",
+    "dev": "node --watch --no-warnings=ExperimentalWarning server.js",
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ImplementacionesCofinet/Vinculaci-n-De-terceros--Inversora-Arcilaza-S.A.S.git"
+  },
+  "author": "Inversora Arcilaza S.A.S",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/ImplementacionesCofinet/Vinculaci-n-De-terceros--Inversora-Arcilaza-S.A.S/issues"
+  },
+  "homepage": "https://github.com/ImplementacionesCofinet/Vinculaci-n-De-terceros--Inversora-Arcilaza-S.A.S#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.10"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.5"
+  }
+}
