@@ -3,67 +3,136 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Registro de terceros – Inversora Arcilaza S.A.S.</title>
+  <title>Registro de proveedores, contratistas y clientes – Inversora Arcilaza S.A.S.</title>
+  <link rel="icon" href="/shared/logo-cofinet.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
   <link rel="stylesheet" href="/shared/estilos.css">
   <link rel="stylesheet" href="formulario.css">
 </head>
 <body>
-  <header class="encabezado">
-    <div class="contenedor">
-      <div class="marca">
-        <div class="logo" aria-hidden="true">IA</div>
-        <div>
-          <div class="sobre">Inversora Arcilaza S.A.S.</div>
-          <h1>Vinculación de terceros</h1>
-          <p>Registro de proveedores, contratistas y clientes</p>
-        </div>
-      </div>
+  <header class="cabecera">
+    <div class="cabecera-in">
+      <img src="/shared/logo-cofinet.png" alt="Cofinet" class="logo">
+      <span>Vinculación de terceros</span>
     </div>
   </header>
 
-  <main class="contenedor">
-    <form id="formulario" novalidate>
-      <fieldset class="seccion">
-        <legend><span class="num">1</span>Tipo de vinculación</legend>
-        <p class="ayuda">Seleccione cómo se vincula con Inversora Arcilaza S.A.S.</p>
-        <div class="tipos" role="radiogroup">
-          <label class="tipo"><input type="radio" name="categoria" value="cliente" required>
-            <span><b>Cliente</b><small>Compra nuestros productos o servicios</small></span></label>
-          <label class="tipo"><input type="radio" name="categoria" value="proveedor">
-            <span><b>Proveedor</b><small>Suministra bienes o servicios</small></span></label>
-          <label class="tipo"><input type="radio" name="categoria" value="contratista">
-            <span><b>Contratista</b><small>Ejecuta obras o servicios por contrato</small></span></label>
+  <main class="pagina">
+    <div class="intro">
+      <div class="antetitulo">FOR-DCF-001 · VERSIÓN 01 · INVERSORA ARCILAZA S.A.S.</div>
+      <h1 id="titulo">Registro de proveedores, contratistas y clientes</h1>
+      <p class="lectura" id="introduccion">Inversora Arcilaza S.A.S. le pide este registro a todas sus contrapartes para cumplir con la normativa colombiana
+        de prevención de lavado de activos y anticorrupción (SAGRILAFT, SARLAFT y PTEE). Descargue el formulario, dilígencielo, fírmelo con sello y
+        huella del representante legal, y súbalo de vuelta junto con los documentos de soporte.</p>
+    </div>
+
+    <!-- Registro nuevo -->
+    <form id="registro" novalidate>
+      <section class="paso" data-paso="1">
+        <div class="paso-riel"><div class="paso-num">1</div><div class="paso-linea"></div></div>
+        <div class="paso-cuerpo">
+          <h2>Descargue el formulario</h2>
+          <p class="paso-desc">Ábralo en Word, complete las 13 secciones y fírmelo. La firma del representante legal es obligatoria.</p>
+          <a class="btn btn-descarga" id="descargar" href="/documentos/FOR-DCF-001.docx">Descargar FOR-DCF-001 <span>Word · 6 páginas</span></a>
         </div>
-      </fieldset>
+      </section>
 
-      <div id="secciones"></div>
+      <section class="paso" data-paso="2">
+        <div class="paso-riel"><div class="paso-num">2</div><div class="paso-linea"></div></div>
+        <div class="paso-cuerpo">
+          <h2>Díganos quién es</h2>
+          <p class="paso-desc">Con esto identificamos su expediente y sabemos qué documentos pedirle.</p>
+          <div class="etiqueta" id="et-tipo">Tipo de contraparte</div>
+          <div class="opciones" role="radiogroup" aria-labelledby="et-tipo" id="tipos"></div>
+          <div class="etiqueta" id="et-persona" style="margin-top:20px">¿Es persona jurídica o natural?</div>
+          <div class="opciones" role="radiogroup" aria-labelledby="et-persona">
+            <label class="opcion"><input type="radio" name="persona" value="juridica"><span>Persona jurídica</span></label>
+            <label class="opcion"><input type="radio" name="persona" value="natural"><span>Persona natural</span></label>
+          </div>
+        </div>
+      </section>
 
-      <fieldset class="seccion" id="seccion-autorizacion" hidden>
-        <legend><span class="num" id="num-autorizacion"></span>Autorizaciones y declaraciones</legend>
-        <div id="autorizaciones"></div>
-      </fieldset>
+      <section class="paso" data-paso="3">
+        <div class="paso-riel"><div class="paso-num">3</div><div class="paso-linea"></div></div>
+        <div class="paso-cuerpo">
+          <h2>Datos básicos</h2>
+          <p class="paso-desc">El resto de la información va dentro del formulario que descargó; aquí solo necesitamos lo mínimo para radicar el expediente.</p>
+          <div class="rejilla" id="basicos"></div>
+        </div>
+      </section>
 
-      <div id="errores"></div>
+      <section class="paso" data-paso="4">
+        <div class="paso-riel"><div class="paso-num">4</div><div class="paso-linea"></div></div>
+        <div class="paso-cuerpo">
+          <h2>Adjunte los documentos</h2>
+          <p class="paso-desc" id="docs-desc">Seleccione primero el tipo de contraparte y si es persona jurídica o natural.</p>
+          <div class="docs" id="docs"></div>
+          <p class="contador" id="contador"></p>
+        </div>
+      </section>
 
-      <div class="acciones" id="acciones" hidden>
-        <button type="submit" class="btn btn-grande" id="btn-enviar">Enviar registro</button>
-      </div>
+      <section class="paso" data-paso="5">
+        <div class="paso-riel"><div class="paso-num">5</div></div>
+        <div class="paso-cuerpo">
+          <h2>Autorice el tratamiento de datos</h2>
+          <p class="lectura legal">Conforme a la Ley 1581 de 2012, Inversora Arcilaza S.A.S. actúa como responsable del tratamiento de sus datos personales,
+            para ejecutar la relación contractual, facturar y recaudar, verificar su identidad en listas restrictivas y centrales de riesgo crediticio,
+            cumplir obligaciones legales y tributarias, y atender requerimientos de autoridades.</p>
+          <label class="casilla"><input type="checkbox" name="acepta_tratamiento" id="acepta">
+            <span>Autorizo el tratamiento de mis datos personales y declaro que la información y los documentos adjuntos son ciertos y verificables.</span></label>
+          <div id="errores"></div>
+          <div class="enviar">
+            <button type="submit" class="btn btn-grande" id="btn-enviar" disabled>Enviar registro</button>
+            <span class="ayuda" id="enviar-ayuda"></span>
+          </div>
+        </div>
+      </section>
     </form>
 
-    <section id="exito" class="seccion exito" hidden>
-      <div class="exito-icono" aria-hidden="true">✓</div>
-      <h2>¡Registro enviado!</h2>
-      <p>Su información fue recibida correctamente por el área contable de Inversora Arcilaza S.A.S.</p>
-      <p class="consecutivo">Número de radicado: <b id="exito-consecutivo"></b></p>
-      <p class="ayuda">Guarde este número para cualquier consulta. Nos pondremos en contacto si se requiere información adicional.</p>
-      <button class="btn btn-sec" onclick="location.reload()">Registrar otro tercero</button>
+    <!-- Corrección de un expediente devuelto -->
+    <form id="correccion" novalidate hidden>
+      <div class="caja-devuelto">
+        <div class="antetitulo" id="c-cons"></div>
+        <p id="c-texto"></p>
+        <div class="observacion" id="c-obs"></div>
+      </div>
+      <section class="paso">
+        <div class="paso-riel"><div class="paso-num">1</div><div class="paso-linea"></div></div>
+        <div class="paso-cuerpo">
+          <h2>Reemplace o complete los documentos</h2>
+          <p class="paso-desc">Solo suba los documentos que le pidieron corregir. Los demás se conservan.</p>
+          <div class="docs" id="c-docs"></div>
+        </div>
+      </section>
+      <section class="paso">
+        <div class="paso-riel"><div class="paso-num">2</div></div>
+        <div class="paso-cuerpo">
+          <h2>Envíe las correcciones</h2>
+          <div id="c-errores"></div>
+          <div class="enviar"><button type="submit" class="btn btn-grande" id="c-enviar" disabled>Enviar correcciones</button></div>
+        </div>
+      </section>
+    </form>
+
+    <section id="exito" class="exito" hidden>
+      <div class="antetitulo">REGISTRO RADICADO</div>
+      <h2 id="exito-titulo">Recibimos su registro</h2>
+      <div class="radicado" id="exito-cons"></div>
+      <p class="lectura" id="exito-texto"></p>
+    </section>
+
+    <section id="aviso-enlace" class="exito" hidden>
+      <h2>Este enlace ya no está disponible</h2>
+      <p class="lectura" id="aviso-texto"></p>
     </section>
   </main>
 
-  <footer class="pie">© Inversora Arcilaza S.A.S. · La información suministrada es tratada conforme a la Ley 1581 de 2012.</footer>
+  <footer class="pie" id="pie"></footer>
 
   <script src="/shared/campos.js"></script>
-  <script src="/shared/render.js"></script>
+  <script src="/shared/archivos.js"></script>
   <script src="formulario.js"></script>
 </body>
 </html>

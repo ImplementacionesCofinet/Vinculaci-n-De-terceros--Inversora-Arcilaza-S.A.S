@@ -6,9 +6,10 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 
 const config = require('./src/config');
-const { db, registrarHistorial } = require('./src/db');
+const { db, registrarHistorial, verSiguienteConsecutivo } = require('./src/db');
 const T = require('./src/terceros');
-const { enviarTercero, smtpConfigurado } = require('./src/mailer');
+const correo = require('./src/mailer');
+const sharepoint = require('./src/sharepoint');
 const CAMPOS = require('./public/shared/campos');
 
 const app = express();
@@ -16,19 +17,14 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
 // ---------- Carga de archivos ----------
-const tmpDir = path.join(config.uploadsDir, '_tmp');
+const tmpDir = path.join(path.dirname(config.dbPath), 'tmp');
 fs.mkdirSync(tmpDir, { recursive: true });
-const EXT_PERMITIDAS = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx'];
-const nombresAnexos = CAMPOS.ANEXOS.map((a) => a.name);
 const upload = multer({
   dest: tmpDir,
-  limits: { fileSize: config.maxFileMb * 1024 * 1024, files: 30 },
+  limits: { fileSize: CAMPOS.MAX_MB * 1024 * 1024, files: 40 },
   fileFilter: (req, file, cb) => {
     // multer entrega el nombre en latin1; se corrige a UTF-8 para conservar tildes y ñ.
     file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (!nombresAnexos.includes(file.fieldname)) return cb(null, false);
-    if (!EXT_PERMITIDAS.includes(ext)) return cb(new Error(`Tipo de archivo no permitido: ${file.originalname}. Use PDF, imagen, Word o Excel.`));
     cb(null, true);
   },
 }).any();
@@ -37,22 +33,20 @@ function conArchivos(req, res, next) {
   upload(req, res, (err) => {
     if (!err) return next();
     T.eliminarTemporales(req.files);
-    const msg = err.code === 'LIMIT_FILE_SIZE' ? `Cada archivo debe pesar máximo ${config.maxFileMb} MB` : err.message;
+    const msg = err.code === 'LIMIT_FILE_SIZE' ? `Cada archivo debe pesar máximo ${CAMPOS.MAX_MB} MB` : err.message;
     res.status(400).json({ ok: false, errores: [msg] });
   });
 }
 
-// ---------- Middlewares generales ----------
+// ---------- Middlewares ----------
 app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: false }));
 app.use(session({
   name: 'arcilaza.sid',
   secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: config.baseUrl.startsWith('https'), maxAge: 8 * 60 * 60 * 1000 },
+  cookie: { httpOnly: true, sameSite: 'lax', secure: config.baseUrl.startsWith('https'), maxAge: 10 * 60 * 60 * 1000 },
 }));
-
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -73,16 +67,52 @@ app.use('/formulario', express.static(path.join(__dirname, 'public/formulario'))
 app.use('/app', express.static(path.join(__dirname, 'public/app')));
 app.get('/', (req, res) => res.redirect('/formulario/'));
 
-// ---------- API pública (formulario de terceros) ----------
-app.post('/api/public/registro', conArchivos, (req, res) => {
-  const categoria = req.body.categoria;
+app.get('/documentos/FOR-DCF-001.docx', (req, res) => {
+  if (!fs.existsSync(config.formularioWord)) {
+    return res.status(404).type('html').send('<p style="font-family:sans-serif;padding:24px">El formulario FOR-DCF-001 aún no está disponible para descarga. Escríbanos a ' +
+      config.empresa.correo + '.</p>');
+  }
+  res.download(config.formularioWord, 'FOR-DCF-001 Formulario de vinculacion de terceros.docx');
+});
+
+// ---------- Portal público ----------
+app.get('/api/public/config', (req, res) => {
+  res.json({ ok: true, empresa: config.empresa, formularioDisponible: fs.existsSync(config.formularioWord) });
+});
+
+app.post('/api/public/registro', conArchivos, async (req, res) => {
+  const { categoria, persona } = req.body;
   if (!CAMPOS.CATEGORIAS_PUBLICAS.includes(categoria)) {
     T.eliminarTemporales(req.files);
-    return res.status(400).json({ ok: false, errores: ['Seleccione si es cliente, proveedor o contratista'] });
+    return res.status(400).json({ ok: false, errores: ['Seleccione el tipo de contraparte'] });
   }
-  const r = T.crearTercero({ categoria, body: req.body, archivos: req.files, origen: 'formulario' });
+  const r = T.crearExpediente({ categoria, persona, body: req.body, archivos: req.files, origen: 'portal' });
   if (!r.ok) return res.status(400).json(r);
-  res.json({ ok: true, consecutivo: r.tercero.consecutivo, categoria: CAMPOS.CATEGORIAS[categoria].nombre });
+  const envio = await correo.confirmarRadicado(r.tercero);
+  if (!envio.ok) registrarHistorial(r.tercero.id, 'No se pudo enviar la confirmación del radicado: ' + envio.error, 'Sistema');
+  res.json({ ok: true, consecutivo: r.tercero.consecutivo, email: r.tercero.email });
+});
+
+// Expediente devuelto: el tercero corrige desde el enlace que recibió por correo
+app.get('/api/public/expediente/:token', (req, res) => {
+  const e = T.publicoPorToken(req.params.token);
+  if (!e) return res.status(404).json({ ok: false, errores: ['El enlace no es válido'] });
+  delete e.id;
+  res.json({ ok: true, expediente: e });
+});
+
+app.post('/api/public/expediente/:token', conArchivos, (req, res) => {
+  const e = T.publicoPorToken(req.params.token);
+  if (!e) { T.eliminarTemporales(req.files); return res.status(404).json({ ok: false, errores: ['El enlace no es válido'] }); }
+  if (e.estado !== 'devuelto') { T.eliminarTemporales(req.files); return res.status(400).json({ ok: false, errores: ['Este expediente ya no está pendiente de correcciones'] }); }
+  const { validos, errores } = T.revisarArchivos(e.categoria, e.persona, req.files);
+  if (Object.keys(errores).length) { T.eliminarTemporales(validos); return res.status(400).json({ ok: false, errores: Object.values(errores), archivos: errores }); }
+  if (!validos.length) return res.status(400).json({ ok: false, errores: ['Adjunte al menos un documento corregido'] });
+  const t = T.obtener(e.id);
+  T.guardarArchivos(t, validos, 'Portal');
+  T.cambiarEstado(t.id, 'pendiente');
+  registrarHistorial(t.id, `El tercero envió correcciones desde el portal: ${[...new Set(validos.map((f) => CAMPOS.etiquetaAnexo(f.fieldname)))].join(', ')}.`, null);
+  res.json({ ok: true, consecutivo: t.consecutivo });
 });
 
 // ---------- Autenticación ----------
@@ -98,7 +128,10 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 app.post('/api/auth/logout', (req, res) => req.session.destroy(() => res.json({ ok: true })));
-app.get('/api/auth/me', (req, res) => res.json({ ok: true, usuario: req.session.usuario || null, smtp: smtpConfigurado, correoPorDefecto: config.smtp.defaultTo, baseUrl: config.baseUrl }));
+app.get('/api/auth/me', (req, res) => res.json({
+  ok: true, usuario: req.session.usuario || null, smtp: correo.smtpConfigurado, sharepoint: sharepoint.configurado,
+  oficial: config.oficial.email ? `${config.oficial.nombre} <${config.oficial.email}>` : null, mesesActualizacion: config.mesesActualizacion,
+}));
 app.post('/api/auth/password', requiereSesion, (req, res) => {
   const { actual, nueva } = req.body || {};
   const u = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(req.session.usuario.id);
@@ -113,74 +146,135 @@ const api = express.Router();
 api.use(requiereSesion);
 
 api.get('/resumen', (req, res) => res.json({ ok: true, ...T.resumen() }));
+api.get('/por-actualizar', (req, res) => res.json({ ok: true, terceros: T.porActualizar() }));
+api.get('/reportes', (req, res) => res.json({ ok: true, ...T.reportes(req.query.anio) }));
+api.get('/consecutivo', (req, res) => {
+  const cat = CAMPOS.CATEGORIAS[req.query.categoria] || CAMPOS.CATEGORIAS.proveedor;
+  res.json({ ok: true, consecutivo: verSiguienteConsecutivo(cat.prefijo, new Date().getFullYear()) });
+});
 
 api.get('/terceros', (req, res) => {
-  const { categoria, estado, q } = req.query;
-  res.json({ ok: true, terceros: T.listarTerceros({ categoria, estado, q }) });
+  const { categoria, estado, anio, q } = req.query;
+  res.json({ ok: true, terceros: T.listar({ categoria, estado, anio, q }) });
 });
 
 api.get('/terceros/exportar.csv', (req, res) => {
-  const { categoria, estado, q } = req.query;
-  const lista = T.listarTerceros({ categoria, estado, q, limite: 5000 });
-  const filas = lista.map((t) => ({ ...t, ...JSON.parse(db.prepare('SELECT datos FROM terceros WHERE id = ?').get(t.id).datos) }));
-  const base = ['consecutivo', 'categoria', 'estado', 'origen', 'created_at', 'fecha_validacion', 'fecha_envio', 'num_anexos'];
-  const campos = [...new Set(CAMPOS.SECCIONES.flatMap((s) => s.campos.map((c) => c.name)))];
-  const cols = [...base, ...campos];
-  const csvCelda = (v) => {
+  const { categoria, estado, anio, q } = req.query;
+  const filas = T.listar({ categoria, estado, anio, q, limite: 10000 }).map((f) => T.obtener(f.id));
+  const revision = Object.values(CAMPOS.REVISION).flat();
+  const cols = [
+    ['Consecutivo', (t) => t.consecutivo], ['Tipo', (t) => CAMPOS.CATEGORIAS[t.categoria].nombre], ['Persona', (t) => CAMPOS.PERSONAS[t.persona]],
+    ['Estado', (t) => CAMPOS.ESTADOS[t.estado]], ['Nombre o razón social', (t) => t.nombre], ['Tipo de documento', (t) => t.tipo_documento],
+    ['Número de documento', (t) => t.numero_documento], ['País', (t) => t.pais], ['Ciudad', (t) => t.ciudad], ['Persona de contacto', (t) => t.contacto],
+    ['Teléfono', (t) => t.telefono], ['Correo', (t) => t.email],
+    ...revision.map((c) => [c.label, (t) => t.datos[c.name]]),
+    ['Anexos', (t) => `${new Set(t.anexos.map((a) => a.tipo)).size} / ${CAMPOS.anexosPara(t.categoria, t.persona).length}`],
+    ['Origen', (t) => (t.origen === 'portal' ? 'Portal' : 'Manual')], ['Recibido', (t) => t.created_at], ['Revisado por', (t) => t.revisado_por],
+    ['Fecha de aprobación', (t) => t.fecha_aprobacion], ['Enviado a Cumplimiento', (t) => t.fecha_cumplimiento], ['Carpeta', (t) => t.carpeta],
+  ];
+  const celda = (v) => {
     let s = String(v ?? '');
     if (/^[=+\-@]/.test(s)) s = "'" + s; // evita inyección de fórmulas en Excel
     return `"${s.replace(/"/g, '""')}"`;
   };
-  const cabecera = cols.map((c) => csvCelda(CAMPOS.etiqueta(c))).join(';');
-  const cuerpo = filas.map((f) => cols.map((c) => csvCelda(c === 'estado' ? CAMPOS.ESTADOS[f[c]] : f[c])).join(';')).join('\r\n');
-  const nombre = `terceros_${categoria || 'todos'}_${new Date().toISOString().slice(0, 10)}.csv`;
+  const csv = [cols.map((c) => celda(c[0])).join(';'), ...filas.map((t) => cols.map((c) => celda(c[1](t))).join(';'))].join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
-  res.send('﻿' + cabecera + '\r\n' + cuerpo);
+  res.setHeader('Content-Disposition', `attachment; filename="base_terceros_${categoria || 'todos'}_${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send('﻿' + csv);
 });
 
 api.get('/terceros/:id', (req, res) => {
-  const t = T.obtenerTercero(idParam(req));
-  if (!t) return res.status(404).json({ ok: false, errores: ['Tercero no encontrado'] });
-  res.json({ ok: true, tercero: t });
+  if (!T.obtener(idParam(req))) return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] });
+  T.abrirRevision(idParam(req), quien(req));
+  res.json({ ok: true, tercero: T.obtener(idParam(req)) });
 });
 
-// Registro manual (p. ej. empleados) por el área contable
 api.post('/terceros', conArchivos, (req, res) => {
-  const categoria = req.body.categoria;
-  if (!CAMPOS.CATEGORIAS[categoria]) {
+  const { categoria, persona } = req.body;
+  if (!CAMPOS.CATEGORIAS_MANUALES.includes(categoria)) {
     T.eliminarTemporales(req.files);
     return res.status(400).json({ ok: false, errores: ['Seleccione el tipo de tercero'] });
   }
-  const r = T.crearTercero({ categoria, body: req.body, archivos: req.files, origen: 'manual', usuario: quien(req) });
-  if (!r.ok) return res.status(400).json(r);
-  res.json(r);
+  const r = T.crearExpediente({ categoria, persona, body: req.body, archivos: req.files, origen: 'manual', usuario: quien(req) });
+  res.status(r.ok ? 200 : 400).json(r);
 });
 
 api.put('/terceros/:id', (req, res) => {
-  const r = T.actualizarDatos(idParam(req), req.body, quien(req));
+  const r = T.actualizar(idParam(req), req.body, quien(req));
   res.status(r.ok ? 200 : 400).json(r);
 });
 
-api.post('/terceros/:id/estado', (req, res) => {
-  const { estado, observaciones } = req.body || {};
-  if (estado === 'rechazado' && !String(observaciones || '').trim()) {
-    return res.status(400).json({ ok: false, errores: ['Indique el motivo del rechazo en observaciones'] });
+api.put('/terceros/:id/observaciones', (req, res) => {
+  T.guardarObservaciones(idParam(req), req.body?.observaciones);
+  res.json({ ok: true });
+});
+
+api.post('/terceros/:id/devolver', async (req, res) => {
+  const t = T.obtener(idParam(req));
+  if (!t) return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] });
+  const obs = String(req.body?.observaciones || '').trim();
+  if (!obs) return res.status(400).json({ ok: false, errores: ['Escriba en "Observaciones de la revisión" qué debe corregir el tercero'] });
+  if (t.categoria === 'empleado') return res.status(400).json({ ok: false, errores: ['Los empleados no se devuelven por el portal'] });
+  T.guardarObservaciones(t.id, obs);
+  T.cambiarEstado(t.id, 'devuelto');
+  const envio = await correo.devolverAlTercero(T.obtener(t.id), T.tokenDe(t.id), obs, req.body?.pendientes || []);
+  registrarHistorial(t.id, envio.ok
+    ? `${quien(req)} devolvió el expediente al tercero. Se notificó a ${t.email}${envio.estado === 'simulado' ? ' (correo simulado)' : ''}.`
+    : `${quien(req)} devolvió el expediente, pero el correo al tercero falló: ${envio.error}`, quien(req));
+  res.json({ ok: true, correo: envio, tercero: T.obtener(t.id) });
+});
+
+async function enviarCumplimiento(t, req) {
+  const envio = await correo.enviarACumplimiento(t, T.rutaAnexo);
+  if (envio.ok) {
+    T.cambiarEstado(t.id, 'en_cumplimiento', { fecha_cumplimiento: 'ahora' });
+    registrarHistorial(t.id, `Expediente enviado al Oficial de Cumplimiento${envio.estado === 'simulado' ? ' (correo simulado: SMTP no configurado)' : ''}.`, quien(req));
+  } else {
+    registrarHistorial(t.id, 'No se pudo enviar el correo al Oficial de Cumplimiento: ' + envio.error, quien(req));
   }
-  const r = T.cambiarEstado(idParam(req), estado, observaciones, quien(req));
-  res.status(r.ok ? 200 : 400).json(r);
+  return envio;
+}
+
+api.post('/terceros/:id/aprobar', async (req, res) => {
+  const t = T.obtener(idParam(req));
+  if (!t) return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] });
+  if (['aprobado', 'en_cumplimiento'].includes(t.estado)) return res.status(400).json({ ok: false, errores: ['El expediente ya fue aprobado'] });
+  if (req.body?.observaciones !== undefined) T.guardarObservaciones(t.id, req.body.observaciones);
+  T.cambiarEstado(t.id, 'aprobado', { revisado_por: quien(req), fecha_aprobacion: 'ahora' });
+  registrarHistorial(t.id, `${quien(req)} aprobó la documentación.`, quien(req));
+  let envio = null;
+  if (CAMPOS.CATEGORIAS[t.categoria].sagrilaft) envio = await enviarCumplimiento(T.obtener(t.id), req);
+  res.json({ ok: true, correo: envio, tercero: T.obtener(t.id) });
+});
+
+api.post('/terceros/:id/reenviar-cumplimiento', async (req, res) => {
+  const t = T.obtener(idParam(req));
+  if (!t) return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] });
+  if (!['aprobado', 'en_cumplimiento'].includes(t.estado)) return res.status(400).json({ ok: false, errores: ['Primero apruebe el expediente'] });
+  const envio = await enviarCumplimiento(t, req);
+  res.status(envio.ok ? 200 : 400).json({ ok: envio.ok, errores: envio.ok ? undefined : [envio.error], correo: envio, tercero: T.obtener(t.id) });
+});
+
+api.post('/terceros/:id/rechazar', (req, res) => {
+  const t = T.obtener(idParam(req));
+  if (!t) return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] });
+  const obs = String(req.body?.observaciones || '').trim();
+  if (!obs) return res.status(400).json({ ok: false, errores: ['Escriba en "Observaciones de la revisión" el motivo del rechazo'] });
+  T.guardarObservaciones(t.id, obs);
+  T.cambiarEstado(t.id, 'rechazado', { revisado_por: quien(req) });
+  registrarHistorial(t.id, `${quien(req)} rechazó el expediente.`, quien(req));
+  res.json({ ok: true, tercero: T.obtener(t.id) });
 });
 
 api.post('/terceros/:id/anexos', conArchivos, (req, res) => {
-  const t = T.obtenerTercero(idParam(req));
-  if (!t) {
-    T.eliminarTemporales(req.files);
-    return res.status(404).json({ ok: false, errores: ['Tercero no encontrado'] });
-  }
-  if (!req.files?.length) return res.status(400).json({ ok: false, errores: ['Seleccione al menos un archivo'] });
-  const tipos = T.guardarAnexos(t, req.files, quien(req));
-  registrarHistorial(t.id, 'Anexos agregados', tipos.map(CAMPOS.etiqueta).join(', '), quien(req));
-  res.json({ ok: true, tercero: T.obtenerTercero(t.id) });
+  const t = T.obtener(idParam(req));
+  if (!t) { T.eliminarTemporales(req.files); return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] }); }
+  const { validos, errores } = T.revisarArchivos(t.categoria, t.persona, req.files);
+  if (Object.keys(errores).length) { T.eliminarTemporales(validos); return res.status(400).json({ ok: false, errores: Object.values(errores) }); }
+  if (!validos.length) return res.status(400).json({ ok: false, errores: ['Seleccione al menos un archivo'] });
+  const g = T.guardarArchivos(t, validos, quien(req));
+  registrarHistorial(t.id, `${quien(req)} agregó ${g.map((x) => x.nombre).join(', ')}.`, quien(req));
+  res.json({ ok: true, tercero: T.obtener(t.id) });
 });
 
 api.get('/anexos/:id', (req, res) => {
@@ -188,29 +282,14 @@ api.get('/anexos/:id', (req, res) => {
   if (!a || !fs.existsSync(a.abs)) return res.status(404).json({ ok: false, errores: ['Anexo no encontrado'] });
   const inline = req.query.ver === '1' && /^(application\/pdf|image\/(png|jpe?g))$/.test(a.mime || '');
   res.setHeader('Content-Type', a.mime || 'application/octet-stream');
-  res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.nombre_original)}`);
+  res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.nombre_archivo)}`);
   fs.createReadStream(a.abs).pipe(res);
 });
 
-api.delete('/anexos/:id', (req, res) => {
-  res.json({ ok: T.eliminarAnexo(idParam(req), quien(req)) });
-});
+api.delete('/anexos/:id', (req, res) => res.json({ ok: T.eliminarAnexo(idParam(req), quien(req)) }));
+api.delete('/terceros/:id', requiereAdmin, (req, res) => res.json({ ok: T.eliminarExpediente(idParam(req), quien(req)) }));
 
-api.post('/terceros/:id/enviar', async (req, res) => {
-  const t = T.obtenerTercero(idParam(req));
-  if (!t) return res.status(404).json({ ok: false, errores: ['Tercero no encontrado'] });
-  if (!['validado', 'enviado'].includes(t.estado)) {
-    return res.status(400).json({ ok: false, errores: ['Primero debe validar la información del tercero'] });
-  }
-  const r = await enviarTercero(t, req.body || {}, quien(req));
-  res.status(r.ok ? 200 : 400).json({ ...r, tercero: T.obtenerTercero(t.id) });
-});
-
-api.delete('/terceros/:id', requiereAdmin, (req, res) => {
-  res.json({ ok: T.eliminarTercero(idParam(req), quien(req)) });
-});
-
-// Usuarios del aplicativo
+// Usuarios
 api.get('/usuarios', requiereAdmin, (req, res) => {
   res.json({ ok: true, usuarios: db.prepare('SELECT id, usuario, nombre, rol, activo, created_at FROM usuarios ORDER BY id').all() });
 });
@@ -249,10 +328,13 @@ app.use((err, req, res, next) => {
 
 if (require.main === module) {
   app.listen(config.port, () => {
-    console.log(`Vinculación de terceros – ${config.empresa}`);
-    console.log(`  Formulario para terceros: ${config.baseUrl}/formulario/`);
-    console.log(`  Aplicativo contable:      ${config.baseUrl}/app/`);
-    if (!smtpConfigurado) console.log('  SMTP no configurado: los correos se guardarán como .eml en', config.correosDir);
+    console.log(`Vinculación de terceros – ${config.empresa.nombre}`);
+    console.log(`  Portal para terceros: ${config.baseUrl}/formulario/`);
+    console.log(`  Aplicativo contable:  ${config.baseUrl}/app/`);
+    console.log(`  Archivo de expedientes: ${config.archivoDir}`);
+    if (!correo.smtpConfigurado) console.log('  SMTP no configurado: los correos se guardan como .eml en', config.correosDir);
+    if (!config.oficial.email) console.log('  Falta OFICIAL_CUMPLIMIENTO_EMAIL: no se podrá enviar a Cumplimiento.');
+    if (!fs.existsSync(config.formularioWord)) console.log('  Falta el formulario Word en', config.formularioWord);
   });
 }
 

@@ -3,41 +3,47 @@ const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const bcrypt = require('bcryptjs');
 const config = require('./config');
-const { CATEGORIAS } = require('../public/shared/campos');
 
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
 const db = new DatabaseSync(config.dbPath);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 
 db.exec(`
+-- Un solo consecutivo por año para todos los tipos: PRO-2026-0042, CLI-2026-0043, EMP-2026-0044…
 CREATE TABLE IF NOT EXISTS consecutivos (
-  categoria TEXT PRIMARY KEY,
-  prefijo   TEXT NOT NULL,
-  ultimo    INTEGER NOT NULL DEFAULT 0
+  anio   INTEGER PRIMARY KEY,
+  ultimo INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS terceros (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   consecutivo      TEXT NOT NULL UNIQUE,
+  anio             INTEGER NOT NULL,
   categoria        TEXT NOT NULL,
-  origen           TEXT NOT NULL,           -- formulario | manual
+  persona          TEXT NOT NULL,            -- juridica | natural
+  origen           TEXT NOT NULL,            -- portal | manual
   estado           TEXT NOT NULL DEFAULT 'pendiente',
+  nombre           TEXT NOT NULL,
   tipo_documento   TEXT,
   numero_documento TEXT,
-  nombre           TEXT NOT NULL,
-  email            TEXT,
-  celular          TEXT,
+  pais             TEXT,
   ciudad           TEXT,
-  datos            TEXT NOT NULL,           -- JSON con toda la información del formulario
+  contacto         TEXT,
+  telefono         TEXT,
+  email            TEXT,
+  datos            TEXT NOT NULL DEFAULT '{}',  -- datos de revisión (bancarios, SAGRILAFT…)
   observaciones    TEXT,
-  validado_por     TEXT,
-  fecha_validacion TEXT,
-  fecha_envio      TEXT,
+  carpeta          TEXT NOT NULL,            -- ruta relativa del expediente
+  sharepoint_url   TEXT,
+  token            TEXT NOT NULL UNIQUE,     -- acceso del tercero para corregir un expediente devuelto
+  revisado_por     TEXT,
+  fecha_aprobacion TEXT,
+  fecha_cumplimiento TEXT,
   creado_por       TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   updated_at       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
-CREATE INDEX IF NOT EXISTS idx_terceros_categoria ON terceros(categoria, estado);
+CREATE INDEX IF NOT EXISTS idx_terceros_estado ON terceros(estado, categoria, anio);
 CREATE INDEX IF NOT EXISTS idx_terceros_documento ON terceros(numero_documento);
 
 CREATE TABLE IF NOT EXISTS anexos (
@@ -45,7 +51,7 @@ CREATE TABLE IF NOT EXISTS anexos (
   tercero_id      INTEGER NOT NULL REFERENCES terceros(id) ON DELETE CASCADE,
   tipo            TEXT NOT NULL,
   nombre_original TEXT NOT NULL,
-  ruta            TEXT NOT NULL,            -- relativa a la carpeta de anexos
+  nombre_archivo  TEXT NOT NULL,             -- "PRO-2026-0042 - RUT.pdf"
   mime            TEXT,
   tamano          INTEGER,
   subido_por      TEXT,
@@ -55,8 +61,7 @@ CREATE TABLE IF NOT EXISTS anexos (
 CREATE TABLE IF NOT EXISTS historial (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   tercero_id INTEGER NOT NULL REFERENCES terceros(id) ON DELETE CASCADE,
-  accion     TEXT NOT NULL,
-  detalle    TEXT,
+  texto      TEXT NOT NULL,
   usuario    TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
@@ -64,11 +69,11 @@ CREATE TABLE IF NOT EXISTS historial (
 CREATE TABLE IF NOT EXISTS correos (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   tercero_id    INTEGER NOT NULL REFERENCES terceros(id) ON DELETE CASCADE,
+  tipo          TEXT NOT NULL,               -- radicado | devolucion | cumplimiento
   destinatarios TEXT NOT NULL,
   asunto        TEXT NOT NULL,
-  estado        TEXT NOT NULL,              -- enviado | simulado | error
+  estado        TEXT NOT NULL,               -- enviado | simulado | error
   detalle       TEXT,
-  usuario       TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -83,20 +88,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 `);
 
-const insCons = db.prepare('INSERT OR IGNORE INTO consecutivos (categoria, prefijo, ultimo) VALUES (?, ?, 0)');
-for (const [cat, info] of Object.entries(CATEGORIAS)) insCons.run(cat, info.prefijo);
-
 if (!db.prepare('SELECT COUNT(*) AS n FROM usuarios').get().n) {
   db.prepare('INSERT INTO usuarios (usuario, nombre, password_hash, rol) VALUES (?, ?, ?, ?)').run(
-    config.adminUser,
-    'Administrador',
-    bcrypt.hashSync(config.adminPassword, 10),
-    'admin'
+    config.adminUser, config.adminNombre, bcrypt.hashSync(config.adminPassword, 10), 'admin'
   );
   console.log(`Usuario administrador creado: "${config.adminUser}". Cambie la contraseña después del primer ingreso.`);
 }
 
-/** Ejecuta fn dentro de una transacción. */
 function transaccion(fn) {
   db.exec('BEGIN IMMEDIATE');
   try {
@@ -109,15 +107,23 @@ function transaccion(fn) {
   }
 }
 
-/** Reserva el siguiente consecutivo de la categoría, p. ej. PRO-00012. Debe llamarse dentro de una transacción. */
-function siguienteConsecutivo(categoria) {
-  const row = db.prepare('UPDATE consecutivos SET ultimo = ultimo + 1 WHERE categoria = ? RETURNING prefijo, ultimo').get(categoria);
-  if (!row) throw new Error('Categoría sin consecutivo: ' + categoria);
-  return `${row.prefijo}-${String(row.ultimo).padStart(5, '0')}`;
+const formatoConsecutivo = (prefijo, anio, n) => `${prefijo}-${anio}-${String(n).padStart(4, '0')}`;
+
+/** Reserva el siguiente consecutivo del año. Debe llamarse dentro de una transacción. */
+function reservarConsecutivo(prefijo, anio) {
+  db.prepare('INSERT OR IGNORE INTO consecutivos (anio, ultimo) VALUES (?, 0)').run(anio);
+  const { ultimo } = db.prepare('UPDATE consecutivos SET ultimo = ultimo + 1 WHERE anio = ? RETURNING ultimo').get(anio);
+  return formatoConsecutivo(prefijo, anio, ultimo);
 }
 
-function registrarHistorial(terceroId, accion, detalle, usuario) {
-  db.prepare('INSERT INTO historial (tercero_id, accion, detalle, usuario) VALUES (?, ?, ?, ?)').run(terceroId, accion, detalle || null, usuario || null);
+/** El consecutivo que se asignaría ahora (solo para mostrar; no lo reserva). */
+function verSiguienteConsecutivo(prefijo, anio) {
+  const row = db.prepare('SELECT ultimo FROM consecutivos WHERE anio = ?').get(anio);
+  return formatoConsecutivo(prefijo, anio, (row ? row.ultimo : 0) + 1);
 }
 
-module.exports = { db, transaccion, siguienteConsecutivo, registrarHistorial };
+function registrarHistorial(terceroId, texto, usuario) {
+  db.prepare('INSERT INTO historial (tercero_id, texto, usuario) VALUES (?, ?, ?)').run(terceroId, texto, usuario || null);
+}
+
+module.exports = { db, transaccion, reservarConsecutivo, verSiguienteConsecutivo, registrarHistorial };

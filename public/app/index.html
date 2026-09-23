@@ -4,16 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vinculación de terceros – Inversora Arcilaza S.A.S.</title>
+  <link rel="icon" href="/shared/logo-cofinet.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600&display=swap">
   <link rel="stylesheet" href="/shared/estilos.css">
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <!-- Ingreso -->
   <div id="login" class="login" hidden>
     <form id="form-login" class="login-caja">
-      <div class="logo grande" aria-hidden="true">IA</div>
+      <div class="logo-pastilla"><img src="/shared/logo-cofinet.png" alt="Cofinet"></div>
       <h1>Vinculación de terceros</h1>
-      <p class="ayuda">Inversora Arcilaza S.A.S. · Área contable</p>
+      <div class="sub">Inversora Arcilaza S.A.S. · Contabilidad</div>
       <div id="login-error"></div>
       <div class="campo"><label for="l-usuario">Usuario</label><input id="l-usuario" name="usuario" autocomplete="username" required></div>
       <div class="campo"><label for="l-password">Contraseña</label><input id="l-password" name="password" type="password" autocomplete="current-password" required></div>
@@ -21,48 +24,43 @@
     </form>
   </div>
 
-  <!-- Aplicativo -->
   <div id="app" class="app" hidden>
     <aside class="lateral" id="lateral">
-      <div class="lateral-marca">
-        <div class="logo" aria-hidden="true">IA</div>
-        <div><b>Vinculación de terceros</b><small>Inversora Arcilaza S.A.S.</small></div>
+      <div>
+        <div class="lateral-marca">
+          <div class="logo-pastilla"><img src="/shared/logo-cofinet.png" alt="Cofinet"></div>
+          <div>Vinculación de terceros<br>Inversora Arcilaza S.A.S.</div>
+        </div>
+        <nav class="nav" id="nav">
+          <a href="#/bandeja" data-ruta="bandeja">Bandeja de revisión <span class="cuenta" data-cuenta="pendientes"></span></a>
+          <a href="#/categoria/proveedor" data-ruta="categoria/proveedor">Proveedores</a>
+          <a href="#/categoria/cliente" data-ruta="categoria/cliente">Clientes</a>
+          <a href="#/categoria/contratista" data-ruta="categoria/contratista">Contratistas</a>
+          <a href="#/categoria/empleado" data-ruta="categoria/empleado">Empleados</a>
+          <a href="#/categoria/otro" data-ruta="categoria/otro" id="nav-otros" hidden>Otros</a>
+          <div class="nav-division"></div>
+          <a href="#/por-actualizar" data-ruta="por-actualizar">Por actualizar <span class="cuenta" data-cuenta="por_actualizar"></span></a>
+          <a href="#/reportes" data-ruta="reportes">Reportes</a>
+          <a href="#/usuarios" data-ruta="usuarios" data-solo-admin hidden>Usuarios</a>
+          <a href="/formulario/" target="_blank" rel="noopener">Portal público ↗</a>
+        </nav>
       </div>
-      <nav>
-        <a href="#/inicio" data-ruta="inicio">Panel general</a>
-        <div class="nav-titulo">Base de datos</div>
-        <a href="#/lista/cliente" data-ruta="lista/cliente">Clientes <span class="contador" data-contador="cliente"></span></a>
-        <a href="#/lista/proveedor" data-ruta="lista/proveedor">Proveedores <span class="contador" data-contador="proveedor"></span></a>
-        <a href="#/lista/contratista" data-ruta="lista/contratista">Contratistas <span class="contador" data-contador="contratista"></span></a>
-        <a href="#/lista/empleado" data-ruta="lista/empleado">Empleados <span class="contador" data-contador="empleado"></span></a>
-        <div class="nav-titulo">Gestión</div>
-        <a href="#/nuevo" data-ruta="nuevo">+ Registro manual</a>
-        <a href="#/usuarios" data-ruta="usuarios" data-solo-admin hidden>Usuarios</a>
-        <a href="#/cuenta" data-ruta="cuenta">Mi cuenta</a>
-        <a href="/formulario/" target="_blank" rel="noopener">Abrir formulario público ↗</a>
-      </nav>
-      <div class="lateral-pie">
-        <span id="usuario-nombre"></span>
-        <button class="btn btn-sec btn-sm" id="btn-salir">Salir</button>
+      <div class="usuario">
+        <div class="avatar" id="avatar"></div>
+        <div>
+          <div class="usuario-nombre" id="usuario-nombre"></div>
+          <div class="usuario-rol"><span id="usuario-rol"></span> · <a href="#/cuenta">Cuenta</a> · <button id="btn-salir" type="button">Salir</button></div>
+        </div>
       </div>
     </aside>
-    <div class="principal">
-      <header class="barra">
-        <button class="btn btn-sec btn-sm menu-movil" id="btn-menu" aria-label="Menú">☰</button>
-        <div>
-          <div class="barra-sobre">Vinculación de terceros – Inversora Arcilaza S.A.S.</div>
-          <div class="barra-titulo">Registro de proveedores, contratistas y clientes</div>
-        </div>
-      </header>
-      <main id="vista" class="vista"></main>
-    </div>
+    <div class="principal" id="vista"></div>
   </div>
 
   <dialog id="modal" class="modal"></dialog>
-  <div id="aviso" class="aviso" hidden></div>
+  <div id="aviso" class="aviso" hidden role="status"></div>
 
   <script src="/shared/campos.js"></script>
-  <script src="/shared/render.js"></script>
+  <script src="/shared/archivos.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

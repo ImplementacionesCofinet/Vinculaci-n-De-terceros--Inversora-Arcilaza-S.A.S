@@ -1,45 +1,48 @@
 # Vinculación de terceros – Inversora Arcilaza S.A.S.
 
-**Registro de proveedores, contratistas y clientes**
-
-El sistema tiene dos partes:
+**Registro de proveedores, contratistas y clientes** · Formulario FOR-DCF-001 · SAGRILAFT / SARLAFT / PTEE
 
 | Parte | URL | Quién la usa |
 |---|---|---|
-| **Formulario web** | `/formulario/` | Clientes, proveedores y contratistas externos. Diligencian su información y adjuntan anexos. |
-| **Aplicativo contable** | `/app/` | Área contable (con usuario y contraseña). Consulta la base de datos, valida, registra manualmente y envía por correo. |
+| **Portal público** | `/formulario/` | Proveedores, contratistas, clientes y otras contrapartes. |
+| **Aplicativo contable** | `/app/` | Contabilidad (con usuario y contraseña). |
 
-## Funcionalidades
+## Flujo
 
-- **Formulario público** con secciones que cambian según el tipo (cliente / proveedor / contratista) y el tipo de persona (natural / jurídica): información general, ubicación, representante legal, tributaria, contacto, comercial, bancaria, SARLAFT, anexos y autorizaciones (Ley 1581 de 2012).
-- **Consecutivo por categoría**: `CLI-00001`, `PRO-00001`, `CON-00001`, `EMP-00001`. Al terminar, el tercero ve su número de radicado.
-- **Anexos guardados por carpeta**: `uploads/clientes/CLI-00001/`, `uploads/proveedores/PRO-00001/`, `uploads/contratistas/…`, `uploads/empleados/…`.
-- **Base de datos** (SQLite, `data/terceros.db`) con una sección por categoría, búsqueda, filtro por estado y exportación a Excel (CSV).
-- **Registro manual** desde el aplicativo (por ejemplo, empleados, que no aparecen en el formulario público).
-- **Validación**: estados *Pendiente → En revisión → Validado / Rechazado → Enviado por correo*, con observaciones, usuario y fecha.
-- **Envío de correo** (solo después de validar) con la información del tercero y los anexos seleccionados adjuntos. Queda registro de cada envío.
-- **Historial** de cada tercero (creación, ediciones, cambios de estado, anexos, correos).
-- **Usuarios** del área contable (roles *Administrador* y *Contabilidad*).
+1. **El tercero** entra al portal, descarga el Word **FOR-DCF-001**, lo diligencia y firma. Luego indica su tipo (proveedor, contratista, cliente u otro) y si es persona jurídica o natural, llena los datos básicos y adjunta los documentos: 10 para persona jurídica y 6 para natural.
+   Cada archivo se revisa apenas se sube: los **vacíos, dañados o renombrados se rechazan** y el botón *Enviar registro* solo se habilita cuando todos los obligatorios están validados.
+2. El sistema asigna el **consecutivo** (`PRO-2026-0042`, `CLI-2026-0043`, `EMP-2026-0049`…). Es un solo número por año para todos los tipos y nadie lo escribe a mano. Los archivos quedan en:
+   ```
+   SOPORTES CREACION TERCEROS/PROVEEDORES/2026/PRO-2026-0042 CAFÉ DE LA SIERRA S.A.S/PRO-2026-0042 - RUT.pdf
+   SOPORTES CREACION TERCEROS/EMPLEADOS/EMP-2026-0049 ALEXANDER PEÑA GIRALDO/…   (empleados: sin año)
+   ```
+   El tercero recibe un correo con su radicado.
+3. **Contabilidad** trabaja desde la **Bandeja de revisión**. Al abrir un expediente, este pasa a *En revisión*. Contabilidad transcribe del FOR-DCF-001 el representante legal, los datos bancarios y las declaraciones SAGRILAFT, y ve alertas por documento: faltantes, "solo se recibió una de las dos" o cámara de comercio con más de 30 días.
+   - **Devolver al tercero**: envía las observaciones al correo del tercero junto con un enlace para reemplazar solo los documentos pedidos. Al corregir, el expediente vuelve a la bandeja.
+   - **Aprobar y enviar a Cumplimiento**: envía automáticamente al Oficial de Cumplimiento un correo con los datos y todos los anexos adjuntos. El estado pasa a *En Cumplimiento*.
+4. **Registro manual**: sirve para empleados o terceros que entregaron los documentos en físico. Tiene zona para arrastrar archivos, con la misma revisión del portal. Los empleados no llevan SAGRILAFT.
+5. Otras secciones:
+   - **Por actualizar**: terceros aprobados hace más de 12 meses.
+   - **Reportes**: resumen por tipo y estado.
+   - **Exportar base**: descarga en CSV para Excel.
+   - **Usuarios**.
+
+Estados: Pendiente de revisión · En revisión · Devuelto al tercero · Aprobado por Contabilidad · En Cumplimiento · Rechazado.
 
 ## Instalación
 
-Requiere **Node.js 22.5 o superior** (usa el módulo SQLite integrado de Node).
+Requiere **Node.js 22.5 o superior** (usa el SQLite integrado de Node).
 
 ```bash
 npm install
-cp .env.example .env     # y edite los valores
+cp .env.example .env      # configure el Oficial de Cumplimiento, SMTP, etc.
 npm start
 ```
 
-- Formulario: http://localhost:3000/formulario/
-- Aplicativo: http://localhost:3000/app/ — usuario inicial `admin` / contraseña de `ADMIN_PASSWORD` (por defecto `Arcilaza2026*`). **Cámbiela en "Mi cuenta" después de ingresar.**
-
-### Correo (SMTP)
-
-Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` y `MAIL_FROM` en `.env`. Para Office 365: `smtp.office365.com`, puerto `587`, `SMTP_SECURE=false`.
-Si `SMTP_HOST` está vacío, el aplicativo funciona en **modo simulado**: el correo se genera completo (con adjuntos) y se guarda como `.eml` en `data/correos/`.
-
-### Pruebas
+- Coloque el Word del formulario en `documentos/FOR-DCF-001.docx`.
+- Usuario inicial `admin` con la contraseña de `ADMIN_PASSWORD`. Cámbiela en *Cuenta* después del primer ingreso.
+- Sin SMTP configurado, los correos se generan completos y se guardan como `.eml` en `data/correos/` (modo simulado).
+- **SharePoint (opcional)**: con las variables `SHAREPOINT_*`, cada archivo también se copia a la biblioteca de SharePoint con la misma estructura de carpetas. El expediente muestra entonces *Abrir carpeta en SharePoint*.
 
 ```bash
 npm test
@@ -48,21 +51,19 @@ npm test
 ## Estructura
 
 ```
-server.js                  Servidor Express y API
-src/config.js              Configuración (.env)
-src/db.js                  Base de datos, tablas y consecutivos
-src/terceros.js            Registro, anexos, estados, consultas
-src/mailer.js              Envío de correos con anexos
-public/shared/campos.js    Definición de campos, secciones y anexos (compartida)
-public/shared/render.js    Construcción de formularios a partir de campos.js
-public/formulario/         Formulario web para terceros
-public/app/                Aplicativo del área contable
-test/                      Pruebas automáticas
+server.js                   Rutas del portal, del aplicativo y de la API
+src/terceros.js             Expedientes: consecutivo, carpetas, anexos, estados, consultas
+src/mailer.js               Correos: radicado, devolución y envío a Cumplimiento
+src/sharepoint.js           Copia opcional a SharePoint (Microsoft Graph)
+src/db.js, src/config.js    Base de datos SQLite y configuración (.env)
+public/shared/campos.js     Tipos, documentos por persona, estados y revisión de archivos (compartido)
+public/formulario/          Portal público
+public/app/                 Aplicativo de Contabilidad
 ```
 
-Para agregar, quitar o cambiar campos o anexos, edite **`public/shared/campos.js`**: el formulario, el aplicativo, la validación, el correo y la exportación se actualizan automáticamente.
+La lista de documentos por tipo de persona, los datos básicos y las preguntas SAGRILAFT se editan en `public/shared/campos.js`.
 
 ## Producción
 
-- Use `SESSION_SECRET` largo y aleatorio y publique detrás de HTTPS (`BASE_URL=https://…`).
-- Haga copia de seguridad periódica de las carpetas `data/` y `uploads/`.
+- Publique detrás de HTTPS (`BASE_URL=https://…`) y use un `SESSION_SECRET` largo y aleatorio.
+- Haga copia de seguridad de `data/` (base de datos) y de la carpeta de expedientes (`ARCHIVO_DIR`), o active SharePoint.
