@@ -10,6 +10,7 @@ const { db, registrarHistorial, verSiguienteConsecutivo } = require('./src/db');
 const T = require('./src/terceros');
 const correo = require('./src/mailer');
 const sharepoint = require('./src/sharepoint');
+const AlmacenSqlite = require('./src/sesiones');
 const CAMPOS = require('./public/shared/campos');
 
 const app = express();
@@ -42,6 +43,7 @@ function conArchivos(req, res, next) {
 app.use(express.json({ limit: '1mb' }));
 app.use(session({
   name: 'arcilaza.sid',
+  store: new AlmacenSqlite(),
   secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
@@ -53,6 +55,26 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'same-origin');
   next();
 });
+
+/** Límite simple de intentos por IP (p. ej. para el ingreso y el portal público). */
+function limite(maximo, ventanaMin, mensaje) {
+  const intentos = new Map();
+  setInterval(() => { const ahora = Date.now(); for (const [k, v] of intentos) if (v.hasta < ahora) intentos.delete(k); }, 60_000).unref();
+  return (req, res, next) => {
+    const ahora = Date.now();
+    const v = intentos.get(req.ip) || { n: 0, hasta: ahora + ventanaMin * 60_000 };
+    if (v.hasta < ahora) { v.n = 0; v.hasta = ahora + ventanaMin * 60_000; }
+    v.n += 1;
+    intentos.set(req.ip, v);
+    if (v.n > maximo) {
+      T.eliminarTemporales(req.files);
+      return res.status(429).json({ ok: false, errores: [mensaje] });
+    }
+    next();
+  };
+}
+const limiteIngreso = limite(10, 15, 'Demasiados intentos de ingreso. Espere 15 minutos.');
+const limitePortal = limite(30, 60, 'Demasiados envíos desde esta conexión. Intente más tarde.');
 
 const requiereSesion = (req, res, next) =>
   req.session.usuario ? next() : res.status(401).json({ ok: false, errores: ['Sesión expirada. Ingrese nuevamente.'] });
@@ -66,6 +88,10 @@ app.use('/shared', express.static(path.join(__dirname, 'public/shared')));
 app.use('/formulario', express.static(path.join(__dirname, 'public/formulario')));
 app.use('/app', express.static(path.join(__dirname, 'public/app')));
 app.get('/', (req, res) => res.redirect('/formulario/'));
+app.get('/salud', (req, res) => {
+  db.prepare('SELECT 1').get();
+  res.json({ ok: true });
+});
 
 app.get('/documentos/FOR-DCF-001.docx', (req, res) => {
   if (!fs.existsSync(config.formularioWord)) {
@@ -80,7 +106,7 @@ app.get('/api/public/config', (req, res) => {
   res.json({ ok: true, empresa: config.empresa, formularioDisponible: fs.existsSync(config.formularioWord) });
 });
 
-app.post('/api/public/registro', conArchivos, async (req, res) => {
+app.post('/api/public/registro', limitePortal, conArchivos, async (req, res) => {
   const { categoria, persona } = req.body;
   if (!CAMPOS.CATEGORIAS_PUBLICAS.includes(categoria)) {
     T.eliminarTemporales(req.files);
@@ -101,7 +127,7 @@ app.get('/api/public/expediente/:token', (req, res) => {
   res.json({ ok: true, expediente: e });
 });
 
-app.post('/api/public/expediente/:token', conArchivos, (req, res) => {
+app.post('/api/public/expediente/:token', limitePortal, conArchivos, (req, res) => {
   const e = T.publicoPorToken(req.params.token);
   if (!e) { T.eliminarTemporales(req.files); return res.status(404).json({ ok: false, errores: ['El enlace no es válido'] }); }
   if (e.estado !== 'devuelto') { T.eliminarTemporales(req.files); return res.status(400).json({ ok: false, errores: ['Este expediente ya no está pendiente de correcciones'] }); }
@@ -116,7 +142,7 @@ app.post('/api/public/expediente/:token', conArchivos, (req, res) => {
 });
 
 // ---------- Autenticación ----------
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', limiteIngreso, (req, res) => {
   const { usuario, password } = req.body || {};
   const u = db.prepare('SELECT * FROM usuarios WHERE usuario = ? AND activo = 1').get(String(usuario || '').trim().toLowerCase());
   if (!u || !bcrypt.compareSync(String(password || ''), u.password_hash)) {
@@ -327,7 +353,11 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-  app.listen(config.port, () => {
+  if (process.env.NODE_ENV === 'production' && config.sessionSecret === 'cambie-este-secreto') {
+    console.error('Configure SESSION_SECRET con una cadena larga y aleatoria antes de publicar el aplicativo.');
+    process.exit(1);
+  }
+  const servidor = app.listen(config.port, () => {
     console.log(`Vinculación de terceros – ${config.empresa.nombre}`);
     console.log(`  Portal para terceros: ${config.baseUrl}/formulario/`);
     console.log(`  Aplicativo contable:  ${config.baseUrl}/app/`);
@@ -336,6 +366,10 @@ if (require.main === module) {
     if (!config.oficial.email) console.log('  Falta OFICIAL_CUMPLIMIENTO_EMAIL: no se podrá enviar a Cumplimiento.');
     if (!fs.existsSync(config.formularioWord)) console.log('  Falta el formulario Word en', config.formularioWord);
   });
+  // Docker envía SIGTERM al detener el contenedor: se cierran conexiones y la base de datos ordenadamente.
+  for (const senal of ['SIGTERM', 'SIGINT']) {
+    process.on(senal, () => servidor.close(() => { db.close(); process.exit(0); }));
+  }
 }
 
 module.exports = app;

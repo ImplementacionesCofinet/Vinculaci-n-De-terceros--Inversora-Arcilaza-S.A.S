@@ -1,0 +1,44 @@
+# Uso:
+#   cp .env.example .env        (y complete los valores)
+#   docker compose up -d --build                    → http://SERVIDOR:3000
+#   docker compose --profile https up -d --build    → https://DOMINIO (certificado automático)
+services:
+  app:
+    build: .
+    image: vinculacion-terceros-arcilaza
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Rutas dentro del contenedor (no las cambie aquí; cambie los volúmenes)
+      DB_PATH: /app/data/vinculacion.db
+      ARCHIVO_DIR: /app/archivo/SOPORTES CREACION TERCEROS
+      CORREOS_DIR: /app/data/correos
+      FORMULARIO_WORD: /app/documentos/FOR-DCF-001.docx
+    ports:
+      - "${PUERTO_LOCAL:-3000}:3000"
+    volumes:
+      - datos:/app/data                         # base de datos, sesiones y correos simulados
+      - expedientes:/app/archivo                # SOPORTES CREACION TERCEROS/…
+      - ./documentos:/app/documentos:ro         # aquí va FOR-DCF-001.docx
+
+  # HTTPS con certificado gratuito (Let's Encrypt). Requiere DOMINIO en .env apuntando a este servidor.
+  https:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      DOMINIO: ${DOMINIO:-}          # p. ej. terceros.arcilaza.com (obligatorio para este perfil)
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_datos:/data
+      - caddy_config:/config
+
+volumes:
+  datos:
+  expedientes:
+  caddy_datos:
+  caddy_config:

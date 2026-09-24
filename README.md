@@ -29,7 +29,16 @@
 
 Estados: Pendiente de revisión · En revisión · Devuelto al tercero · Aprobado por Contabilidad · En Cumplimiento · Rechazado.
 
-## Instalación
+## Publicar con Docker
+
+```bash
+cp .env.example .env                              # complete SESSION_SECRET, BASE_URL, DOMINIO, SMTP, Oficial de Cumplimiento
+docker compose --profile https up -d --build      # HTTPS automático en https://DOMINIO
+```
+
+La guía completa (requisitos, primer ingreso, copias de seguridad y actualización) está en **[DESPLIEGUE.md](DESPLIEGUE.md)**.
+
+## Instalación sin Docker (desarrollo)
 
 Requiere **Node.js 22.5 o superior** (usa el SQLite integrado de Node).
 
