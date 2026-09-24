@@ -62,7 +62,8 @@ test('revisa archivos vacíos, dañados y renombrados', () => {
   assert.match(CAMPOS.revisarArchivo('a.pdf', 0, b(''), b('')), /vacío/);
   assert.match(CAMPOS.revisarArchivo('a.pdf', 20, b('%PDF-1.4'), b('truncado')), /dañado/);
   assert.match(CAMPOS.revisarArchivo('a.pdf', 20, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), b('IEND')), /renombrado/);
-  assert.match(CAMPOS.revisarArchivo('a.exe', 20, b('MZ'), b('')), /no permitido/);
+  assert.match(CAMPOS.revisarArchivo('a.exe', 20, b('MZ'), b('')), /Solo se permiten archivos PDF/);
+  assert.match(CAMPOS.revisarArchivo('foto.png', 20, Buffer.from([0x89, 0x50, 0x4e, 0x47]), b('IEND')), /Solo se permiten archivos PDF/);
 });
 
 test('el portal exige los documentos obligatorios y rechaza archivos dañados', async () => {
@@ -182,4 +183,41 @@ test('registro manual de empleado: sin año ni SAGRILAFT', async () => {
   const csv = await (await fetch(`${base}/api/terceros/exportar.csv`, { headers: { cookie } })).text();
   assert.match(csv, new RegExp(`EMP-${ANIO}-0003`));
   assert.match(csv, /Hernán Darío Ospina/);
+});
+
+test('persona natural: 5 documentos del formulario y límite de archivos por documento', async () => {
+  const defs = CAMPOS.anexosPara('contratista', 'natural');
+  assert.deepEqual(defs.map((d) => d.letra + d.name), ['Aidentidad', 'Bref_comerciales', 'Cref_bancaria', 'Dformulario', 'Erut']);
+  assert.deepEqual(CAMPOS.anexosPara('proveedor', 'juridica').map((d) => d.max), [1, 2, 1, 1, 2, 3, 5, 1, 1, 1]);
+
+  const fd = new FormData();
+  const datos = { categoria: 'contratista', persona: 'natural', nombre: 'JOSÉ ISRAEL SEMANATE', tipo_documento: 'C.C.', numero_documento: '10.244.518',
+    pais: 'Colombia', ciudad: 'Armenia', contacto: 'José', telefono: '3100000000', email: 'jose@correo.co', acepta_tratamiento: 'on' };
+  for (const [k, v] of Object.entries(datos)) fd.append(k, v);
+  for (const d of defs) fd.append(d.name, pdf(d.name), `${d.name}.pdf`);
+  fd.append('ref_comerciales', pdf('otra'), 'otra.pdf'); // máximo 1
+  const r = await pedir('/api/public/registro', { method: 'POST', body: fd });
+  assert.equal(r.status, 400);
+  assert.match(r.json.archivos.ref_comerciales, /máximo 1 archivo/);
+
+  fd.delete('ref_comerciales');
+  fd.append('ref_comerciales', pdf('ref'), 'ref.pdf');
+  const ok = await pedir('/api/public/registro', { method: 'POST', body: fd });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+});
+
+test('reversar un expediente enviado a Cumplimiento por error', async () => {
+  const sinMotivo = await pedir(`/api/terceros/${idProveedor}/reversar`, { method: 'POST', body: {} });
+  assert.equal(sinMotivo.status, 400);
+  const r = await pedir(`/api/terceros/${idProveedor}/reversar`, { method: 'POST', body: { motivo: 'Se aprobó por error' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.tercero.estado, 'en_revision');
+  assert.equal(r.json.tercero.fecha_aprobacion, null);
+  assert.equal(r.json.tercero.revisado_por, null);
+  assert.ok(r.json.correo.ok);
+  assert.match(r.json.tercero.historial.map((h) => h.texto).join(' '), /reversó el expediente \(estaba "En Cumplimiento"\)/);
+  assert.ok(fs.readdirSync(process.env.CORREOS_DIR).some((c) => c.includes('reverso')));
+
+  const otra = await pedir(`/api/terceros/${idProveedor}/reversar`, { method: 'POST', body: { motivo: 'x' } });
+  assert.equal(otra.status, 400); // ya está en revisión: nada que reversar
 });

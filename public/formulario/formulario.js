@@ -17,7 +17,8 @@
     const files = estado?.files || [];
     const error = estado?.error;
     let clase = '';
-    let detalle = esc(def.multiple && !files.length && !recibidos?.length ? def.ayuda || 'Puede subir varios archivos' : def.ayuda || '');
+    const limite = `PDF · ${def.max === 1 ? '1 archivo' : `hasta ${def.max} archivos`}`;
+    let detalle = esc([def.ayuda, limite].filter(Boolean).join(' · '));
     let boton = 'Seleccionar';
     let claseBtn = 'btn-suave';
     if (error) {
@@ -39,10 +40,10 @@
       boton = def.multiple ? 'Agregar' : 'Reemplazar';
     }
     return `<div class="doc ${clase}" data-tipo="${def.name}">
-      <div class="doc-texto"><div class="doc-titulo">${esc(def.label)}${def.req ? '' : ' <span class="ayuda" style="display:inline">(opcional)</span>'}</div>
+      <div class="doc-texto"><div class="doc-titulo"><span class="letra">${def.letra}.</span> ${esc(def.label)}${def.req ? '' : ' <span class="ayuda" style="display:inline">(opcional)</span>'}</div>
         ${detalle ? `<div class="doc-detalle">${detalle}</div>` : ''}</div>
       <button type="button" class="btn btn-chico ${claseBtn}" data-elegir="${def.name}">${boton}</button>
-      <input type="file" hidden data-input="${def.name}" ${def.multiple ? 'multiple' : ''} accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+      <input type="file" hidden data-input="${def.name}" ${def.multiple ? 'multiple' : ''} accept=".pdf,application/pdf">
     </div>`;
   }
 
@@ -52,12 +53,12 @@
     cont.querySelectorAll('[data-input]').forEach((inp) => inp.addEventListener('change', async () => {
       const files = [...inp.files];
       if (!files.length) return;
-      let error = null;
-      for (const f of files) {
+      const def = definiciones().find((d) => d.name === inp.dataset.input);
+      let error = files.length > def.max ? `Puede subir máximo ${def.max} archivo${def.max === 1 ? '' : 's'} en este documento.` : null;
+      for (const f of error ? [] : files) {
         const e = await UTIL.revisar(f);
         if (e) { error = `${f.name} — ${e}`; break; }
       }
-      const def = definiciones().find((d) => d.name === inp.dataset.input);
       if (error && def?.ayudaError && error.includes('dañado')) error += ' ' + def.ayudaError;
       docs[inp.dataset.input] = { files: error ? [] : files, error };
       alCambiar();
@@ -71,7 +72,7 @@
         fila.classList.remove('arrastrando');
         const inp = fila.querySelector('[data-input]');
         const dt = new DataTransfer();
-        [...e.dataTransfer.files].slice(0, inp.multiple ? 20 : 1).forEach((f) => dt.items.add(f));
+        [...e.dataTransfer.files].slice(0, 20).forEach((f) => dt.items.add(f));
         inp.files = dt.files;
         inp.dispatchEvent(new Event('change'));
       });

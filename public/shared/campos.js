@@ -62,29 +62,45 @@
     ],
   };
 
-  // Anexos. archivo: nombre con el que se guarda ("PRO-2026-0042 - RUT.pdf").
-  // min: cantidad de archivos esperada (se advierte en la revisión si llegan menos).
-  const A = {
-    formulario: { name: 'formulario', label: 'Formulario FOR-DCF-001 diligenciado y firmado', corto: 'Formulario FOR-DCF-001 firmado', archivo: 'FORMULARIO DE VINCULACION TERCEROS', req: true },
-    camara: { name: 'camara', label: 'Certificado de existencia y representación legal', corto: 'Certificado de existencia y rep. legal', archivo: 'CERTIFICADO EXISTENCIA Y REP. LEGAL', req: true, ayuda: 'Con fecha de expedición no mayor a 30 días' },
-    rut: { name: 'rut', label: 'Copia del RUT actualizado', archivo: 'RUT', req: true, ayudaError: 'Vuelva a descargarlo de la DIAN.' },
-    identidad_rep: { name: 'identidad', label: 'Documento de identidad del representante legal', corto: 'Documento de identidad del rep. legal', archivo: 'DOCUMENTO DE IDENTIDAD', req: true },
-    identidad: { name: 'identidad', label: 'Documento de identidad', archivo: 'DOCUMENTO DE IDENTIDAD', req: true },
-    ref_comerciales: { name: 'ref_comerciales', label: 'Dos referencias comerciales', archivo: 'REFERENCIA COMERCIAL', req: true, multiple: true, min: 2, ayuda: 'Puede subir varios archivos' },
-    ref_bancaria: { name: 'ref_bancaria', label: 'Referencia bancaria', archivo: 'REFERENCIA BANCARIA', req: true, ayuda: 'De la cuenta donde quiere recibir los pagos' },
-    estados_financieros: { name: 'estados_financieros', label: 'Estados financieros (2 periodos)', archivo: 'ESTADOS FINANCIEROS', req: true, multiple: true },
-    renta: { name: 'renta', label: 'Declaración de renta último periodo', archivo: 'DECLARACION DE RENTA', req: true },
-    renta_natural: { name: 'renta', label: 'Declaración de renta o certificado de ingresos y retenciones', corto: 'Declaración de renta o certificado de ingresos', archivo: 'DECLARACION DE RENTA', req: true },
-    accionaria: { name: 'accionaria', label: 'Composición accionaria actualizada', archivo: 'COMPOSICION ACCIONARIA', req: true },
-    certificaciones: { name: 'certificaciones', label: 'Certificaciones de sistemas de gestión', archivo: 'CERTIFICACIONES SISTEMAS DE GESTION', req: false, multiple: true, ayuda: 'Opcional' },
-    cert_bancaria: { name: 'cert_bancaria', label: 'Certificación bancaria', archivo: 'CERTIFICACION BANCARIA', req: true },
+  // Documentos solicitados (secciones 9 y 10 del FOR-DCF-001). Solo PDF.
+  // archivo: nombre con el que se guarda ("PRO-2026-0042 - RUT.pdf").
+  // max: archivos permitidos. min: archivos esperados (la revisión advierte si llegan menos).
+  const doc = (name, label, archivo, extra = {}) => {
+    const d = { name, label, archivo, req: true, max: 1, ...extra };
+    d.multiple = d.max > 1;
+    return d;
   };
+  const CUENTA = 'Cuenta en la que se quiere recibir el pago de las facturas';
 
   const ANEXOS = {
-    juridica: [A.formulario, A.camara, A.rut, A.identidad_rep, A.ref_comerciales, A.ref_bancaria, A.estados_financieros, A.renta, A.accionaria, A.certificaciones],
-    natural: [A.formulario, A.rut, A.identidad, A.ref_comerciales, A.ref_bancaria, A.renta_natural],
-    empleado: [A.identidad, A.cert_bancaria],
+    juridica: [
+      doc('camara', 'Certificado de existencia y representación legal (no mayor a 30 días)', 'CERTIFICADO EXISTENCIA Y REP. LEGAL', { corto: 'Certificado de existencia y rep. legal' }),
+      doc('ref_comerciales', 'Dos referencias comerciales', 'REFERENCIA COMERCIAL', { max: 2, min: 2 }),
+      doc('ref_bancaria', 'Una referencia bancaria', 'REFERENCIA BANCARIA', { ayuda: CUENTA }),
+      doc('rut', 'Copia del RUT actualizado', 'RUT', { ayudaError: 'Vuelva a descargarlo de la DIAN.' }),
+      doc('formulario', 'Formulario de registro de proveedores diligenciado y firmado por el representante legal', 'FORMULARIO DE VINCULACION TERCEROS',
+        { corto: 'Formulario FOR-DCF-001 firmado', max: 2 }),
+      doc('estados_financieros', 'Estados financieros de los dos últimos periodos', 'ESTADOS FINANCIEROS', { corto: 'Estados financieros (2 periodos)', max: 3, min: 2 }),
+      doc('certificaciones', 'Certificaciones con las que cuente (ISO, RUC, SAGRILAFT, SARLAFT, PTEE, entre otras)', 'CERTIFICACIONES',
+        { corto: 'Certificaciones (ISO, SAGRILAFT…)', max: 5, req: false, ayuda: 'Solo si cuenta con alguna' }),
+      doc('identidad', 'Copia del documento de identidad del representante legal', 'DOCUMENTO DE IDENTIDAD', { corto: 'Documento de identidad del rep. legal' }),
+      doc('renta', 'Copia de la declaración de renta del último periodo', 'DECLARACION DE RENTA', { corto: 'Declaración de renta último periodo' }),
+      doc('accionaria', 'Certificado de composición accionaria actualizado', 'COMPOSICION ACCIONARIA', { corto: 'Composición accionaria actualizada' }),
+    ],
+    natural: [
+      doc('identidad', 'Documento de identidad', 'DOCUMENTO DE IDENTIDAD'),
+      doc('ref_comerciales', 'Una referencia comercial', 'REFERENCIA COMERCIAL'),
+      doc('ref_bancaria', 'Una referencia bancaria', 'REFERENCIA BANCARIA', { ayuda: CUENTA }),
+      doc('formulario', 'Formulario de registro de proveedores diligenciado y firmado', 'FORMULARIO DE VINCULACION TERCEROS', { corto: 'Formulario FOR-DCF-001 firmado' }),
+      doc('rut', 'Copia del RUT actualizado', 'RUT', { ayudaError: 'Vuelva a descargarlo de la DIAN.' }),
+    ],
+    empleado: [
+      doc('identidad', 'Documento de identidad', 'DOCUMENTO DE IDENTIDAD'),
+      doc('cert_bancaria', 'Certificación bancaria', 'CERTIFICACION BANCARIA'),
+    ],
   };
+  // Letra de cada documento como en el formulario (A, B, C…)
+  for (const lista of Object.values(ANEXOS)) lista.forEach((d, i) => { d.letra = String.fromCharCode(65 + i); });
 
   const ESTADOS = {
     pendiente: 'Pendiente de revisión',
@@ -95,8 +111,8 @@
     rechazado: 'Rechazado',
   };
 
-  const EXTENSIONES = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
-  const MAX_MB = 10;
+  const EXTENSIONES = ['pdf'];
+  const MAX_MB = 20;
 
   function anexosPara(categoria, persona) {
     if (categoria === 'empleado') return ANEXOS.empleado;
@@ -137,7 +153,7 @@
    */
   function revisarArchivo(nombre, tamano, inicio, final) {
     const ext = String(nombre).split('.').pop().toLowerCase();
-    if (!EXTENSIONES.includes(ext)) return 'Formato no permitido. Use PDF, JPG, PNG, Word o Excel.';
+    if (!EXTENSIONES.includes(ext)) return 'Solo se permiten archivos PDF.';
     if (!tamano) return 'El archivo está vacío.';
     if (tamano > MAX_MB * 1024 * 1024) return `El archivo supera ${MAX_MB} MB.`;
     const zip = [0x50, 0x4b, 0x03, 0x04];

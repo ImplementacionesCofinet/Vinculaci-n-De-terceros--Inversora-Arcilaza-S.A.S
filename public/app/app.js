@@ -251,7 +251,7 @@
         if (def.req) problema = `${def.label}: no se recibió`;
       } else if (def.min && archivos.length < def.min) {
         nivel = 'alerta';
-        detalle = archivos.length === 1 && def.min === 2 ? 'Solo se recibió una de las dos' : `Solo se recibieron ${archivos.length} de ${def.min}`;
+        detalle = def.name === 'ref_comerciales' && archivos.length === 1 ? 'Solo se recibió una de las dos' : `Solo se recibió ${archivos.length} de ${def.min} esperados`;
         problema = `${def.label}: ${detalle.toLowerCase()}`;
       } else if (def.name === 'camara' && t.datos.fecha_camara) {
         const dias = Math.floor((new Date(t.created_at.slice(0, 10)) - new Date(t.datos.fecha_camara)) / 86400000);
@@ -285,7 +285,11 @@
     if (abiertos) {
       if (!esEmpleado) acciones += '<button class="btn btn-alerta" data-accion="devolver">Devolver al tercero</button>';
       acciones += `<button class="btn" data-accion="aprobar">${info.sagrilaft ? 'Aprobar y enviar a Cumplimiento' : 'Aprobar expediente'}</button>`;
-    } else if (info.sagrilaft && ['aprobado', 'en_cumplimiento'].includes(t.estado)) {
+    }
+    if (['aprobado', 'en_cumplimiento', 'devuelto', 'rechazado'].includes(t.estado)) {
+      acciones = '<button class="btn btn-alerta" data-accion="reversar" title="Devuelve el expediente a revisión si se aprobó, envió, devolvió o rechazó por error">Reversar tercero</button>' + acciones;
+    }
+    if (info.sagrilaft && ['aprobado', 'en_cumplimiento'].includes(t.estado)) {
       acciones += `<button class="btn ${t.estado === 'aprobado' ? '' : 'btn-linea'}" data-accion="reenviar">${t.estado === 'aprobado' ? 'Enviar a Cumplimiento' : 'Reenviar a Cumplimiento'}</button>`;
     }
 
@@ -329,7 +333,7 @@
                 <button class="btn-texto" data-accion="anexos">Gestionar</button></span></div>
             <div class="anexos-lista">${revision.map((x) => `<div class="anexo">
               <span class="punto ${x.nivel === 'ok' ? '' : 'p-' + x.nivel}"></span>
-              <div class="anexo-texto"><div class="anexo-titulo">${esc(x.def.corto || x.def.label)}</div><div class="anexo-detalle">${x.detalle}</div></div>
+              <div class="anexo-texto"><div class="anexo-titulo"><span class="letra">${x.def.letra}.</span> ${esc(x.def.corto || x.def.label)}</div><div class="anexo-detalle">${x.detalle}</div></div>
               ${x.archivos.length ? `<a class="btn btn-linea" href="/api/anexos/${x.archivos[0].id}?ver=1" target="_blank" rel="noopener">Ver</a>` : '<button class="btn btn-linea" disabled>Ver</button>'}
             </div>`).join('')}</div>
             <div class="ayuda" style="margin:0" title="${esc(carpetaTexto)}">Carpeta: ${esc(carpetaTexto)}</div>
@@ -361,6 +365,26 @@
     const recargar = () => vistaExpediente(t.id).then(actualizarResumen);
 
     if (acc === 'editar') return modalEditar(t);
+    if (acc === 'reversar') {
+      const avisa = t.estado === 'en_cumplimiento';
+      abrirModal(`<h3>Reversar tercero</h3>
+        <p>${esc(t.consecutivo)} · ${esc(t.nombre)} está <b>${esc(CAMPOS.ESTADOS[t.estado])}</b>. Al reversarlo vuelve a <b>En revisión</b>
+          y se borra la aprobación${t.revisado_por ? ` registrada por ${esc(t.revisado_por)}` : ''}.</p>
+        ${avisa ? `<div class="alerta alerta-info">Como ya se envió a Cumplimiento, se avisará al ${esc(sesion.oficial || 'Oficial de Cumplimiento')} que no tenga en cuenta el envío anterior.</div>` : ''}
+        ${t.estado === 'devuelto' ? '<div class="alerta alerta-info">El enlace de corrección que recibió el tercero dejará de funcionar.</div>' : ''}
+        <div class="campo"><label for="m-motivo">Motivo del reverso <span class="req">*</span></label>
+          <textarea id="m-motivo" name="motivo" rows="3" required placeholder="Ej.: Se aprobó por error; falta verificar la referencia bancaria."></textarea></div>
+        ${botonesModal('Reversar', 'btn-magenta')}`,
+      async (f) => {
+        const motivo = f.motivo.value.trim();
+        if (!motivo) return errorModal({ errores: ['Indique el motivo del reverso'] });
+        const res = await api(`/api/terceros/${t.id}/reversar`, { method: 'POST', body: { motivo } });
+        if (!res.ok) return errorModal(res);
+        aviso(res.correo && !res.correo.ok ? 'Reversado, pero no se pudo avisar a Cumplimiento: ' + res.correo.error : `Expediente reversado: vuelve a revisión${res.correo ? ' y se avisó a Cumplimiento' : ''}`, res.correo && !res.correo.ok);
+        recargar();
+      });
+      return;
+    }
     if (acc === 'anexos') return modalAnexos(t);
     if (acc === 'eliminar') {
       if (!confirm(`¿Eliminar definitivamente ${t.consecutivo} – ${t.nombre}, su carpeta y todos sus anexos?`)) return;
@@ -445,7 +469,7 @@
         <a class="btn btn-linea" href="/api/anexos/${a.id}">Descargar</a><button type="button" class="btn btn-alerta" data-borrar="${a.id}">Eliminar</button></div>`).join('') : '<p class="ayuda">Sin anexos.</p>'}</div>
       <h4>AGREGAR DOCUMENTO</h4>
       <div class="rejilla"><div class="campo"><label for="m-tipo">Tipo</label><select id="m-tipo">${defs.map((d) => `<option value="${d.name}">${esc(d.corto || d.label)}</option>`).join('')}</select></div>
-        <div class="campo"><label for="m-archivo">Archivo</label><input type="file" id="m-archivo" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"></div></div>
+        <div class="campo"><label for="m-archivo">Archivo</label><input type="file" id="m-archivo" multiple accept=".pdf,application/pdf"></div></div>
       <p class="ayuda">Si el tipo admite un solo archivo, el nuevo reemplaza al anterior. Se revisan igual que los del portal.</p>
       ${botonesModal('Subir')}`,
     async (form) => {
@@ -493,8 +517,8 @@
         </div>
         <div class="manual-der">
           <div class="tarjeta"><div class="tarjeta-titulo">Anexos</div>
-            <div class="soltar" id="soltar" tabindex="0" role="button"><b>Arrastre los archivos aquí</b><span>Se revisan igual que los del portal:<br>vacíos, dañados o renombrados se rechazan.</span></div>
-            <input type="file" id="elegir" multiple hidden accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+            <div class="soltar" id="soltar" tabindex="0" role="button"><b>Arrastre los archivos aquí</b><span>Solo PDF. Se revisan igual que los del portal:<br>vacíos, dañados o renombrados se rechazan.</span></div>
+            <input type="file" id="elegir" multiple hidden accept=".pdf,application/pdf">
             <div id="adjuntos" style="display:flex;flex-direction:column;gap:10px"></div>
             <div class="faltan" id="faltan"></div>
           </div>

@@ -1,25 +1,40 @@
 /* Sistema visual: Vinculación de terceros – Inversora Arcilaza S.A.S. */
 :root {
-  --fondo: #F0E7DF;
-  --crema: #EFDDC9;
-  --crema-2: #F5F0EA;
-  --linea: #DED3C8;
-  --linea-suave: #F2EBE3;
+  /* Paleta oficial ---------------------------------------------------------- */
+  --p-carbon: #2D3733;      --p-bosque: #1D3B37;   --p-pino: #0F4B42;     --p-turquesa: #258278;
+  --p-marino: #263849;      --p-petroleo: #385457; --p-musgo: #475F4F;    --p-pizarra: #4E5D59;
+  --p-lino: #F0E7DF;
+  --p-berenjena: #38232D;   --p-vino: #46122F;     --p-uva: #671741;      --p-fucsia: #932553;
+  --p-cereza: #6A3141;      --p-ladrillo: #601E18; --p-oxido: #8D321D;    --p-cobre: #B37956;
+  --p-arena: #EFDDC9;
+
+  /* Usos (solo colores de la paleta o tintes de ellos) ---------------------- */
+  --fondo: var(--p-lino);
+  --crema: var(--p-arena);
+  --crema-2: color-mix(in srgb, var(--p-lino) 55%, #fff);
+  --linea: color-mix(in srgb, var(--p-cobre) 28%, var(--p-lino));
+  --linea-suave: color-mix(in srgb, var(--p-lino) 70%, #fff);
   --blanco: #FFFFFF;
-  --texto: #2D3733;
-  --etiqueta: #3B4A41;
-  --suave: #56605B;
-  --tenue: #A9B2AB;
-  --verde: #1D3B37;
-  --verde-2: #0F4B42;
-  --verde-claro: #E3EDE8;
-  --terracota: #8D321D;
-  --magenta: #932553;
-  --magenta-claro: #F8ECF0;
-  --azul: #263849;
-  --cobre: #B37956;
-  --revision: #A8683F;
-  --rechazo: #6E1B1B;
+  --texto: var(--p-carbon);
+  --etiqueta: var(--p-musgo);
+  --suave: var(--p-pizarra);
+  --tenue: color-mix(in srgb, var(--p-pizarra) 55%, #fff);
+  --verde: var(--p-bosque);
+  --verde-2: var(--p-pino);
+  --turquesa: var(--p-turquesa);
+  --verde-claro: color-mix(in srgb, var(--p-turquesa) 14%, #fff);
+  --terracota: var(--p-oxido);
+  --magenta: var(--p-fucsia);
+  --magenta-2: var(--p-uva);
+  --magenta-claro: color-mix(in srgb, var(--p-fucsia) 8%, #fff);
+  --azul: var(--p-marino);
+  --cobre: var(--p-cobre);
+  --revision: var(--p-cobre);
+  --rechazo: var(--p-ladrillo);
+  --lectura-color: var(--p-petroleo);
+  --lateral-texto: color-mix(in srgb, var(--p-lino) 85%, var(--p-bosque));
+  --lateral-tenue: color-mix(in srgb, var(--p-lino) 55%, var(--p-bosque));
+  --velo: color-mix(in srgb, var(--p-bosque) 45%, transparent);
   --radio: 4px;
   --sans: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --serif: 'Fraunces', Georgia, serif;
@@ -31,7 +46,7 @@ html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.45 var(--sans); }
 h1, h2, h3 { margin: 0; line-height: 1.15; }
 a { color: var(--verde-2); }
-a:hover { color: var(--verde); }
+a:hover { color: var(--turquesa); }
 
 /* Controles */
 label, .etiqueta { display: block; font-size: 13.5px; font-weight: 500; color: var(--etiqueta); margin-bottom: 6px; }
@@ -40,7 +55,7 @@ input, select, textarea {
   border: 1px solid var(--linea); border-radius: 3px; padding: 11px 13px;
 }
 textarea { line-height: 1.55; resize: vertical; }
-input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde-2); outline-offset: -1px; border-color: var(--verde-2); }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--turquesa); outline-offset: -1px; border-color: var(--turquesa); }
 .invalido input:invalid, .invalido select:invalid { border-color: var(--magenta); }
 .ayuda { font-size: 13px; color: var(--suave); margin-top: 6px; }
 .req { color: var(--terracota); }
@@ -57,7 +72,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde-2); o
 .btn-alerta { background: var(--blanco); color: var(--magenta); border-color: var(--magenta); }
 .btn-alerta:hover { background: var(--magenta-claro); color: var(--magenta); }
 .btn-magenta { background: var(--magenta); border-color: var(--magenta); }
-.btn-magenta:hover { background: #7a1d45; }
+.btn-magenta:hover { background: var(--magenta-2); border-color: var(--magenta-2); }
 .btn-suave { background: var(--crema-2); color: var(--texto); border-color: var(--linea); font-weight: 500; }
 .btn-suave:hover { background: var(--crema); color: var(--texto); }
 .btn-chico { padding: 7px 14px; font-size: 13.5px; }
@@ -78,7 +93,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--verde-2); o
 /* Estados */
 .estado { display: inline-block; padding: 4px 11px; border-radius: 3px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .estado-pendiente { background: var(--crema); color: var(--terracota); }
-.estado-en_revision { background: var(--revision); color: #fff; }
+.estado-en_revision { background: var(--revision); color: var(--p-berenjena); }
 .estado-devuelto { background: var(--magenta); color: #fff; }
 .estado-aprobado { background: var(--verde-2); color: #fff; }
 .estado-en_cumplimiento { background: var(--azul); color: #fff; }

@@ -19,7 +19,8 @@ const LOGO = path.join(__dirname, '..', 'public', 'shared', 'logo-cofinet.png');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const lista = (s) => String(s || '').split(/[;,]/).map((x) => x.trim()).filter(Boolean);
 
-const C = { verde: '#1D3B37', texto: '#2D3733', suave: '#56605B', borde: '#DED3C8', crema: '#F5F0EA', fondo: '#F0E7DF' };
+// Colores de la paleta oficial (los correos no admiten variables CSS)
+const C = { verde: '#1D3B37', texto: '#2D3733', suave: '#4E5D59', borde: '#EFDDC9', crema: '#F0E7DF', fondo: '#F0E7DF', fucsia: '#932553', cobre: '#B37956', oxido: '#8D321D' };
 
 function plantilla(contenido) {
   return `<div style="background:${C.fondo};padding:28px 12px;font-family:Arial,Helvetica,sans-serif;color:${C.texto}">
@@ -98,7 +99,7 @@ function devolverAlTercero(t, token, observaciones, pendientes) {
   const html = `
     <p style="font-size:15px;line-height:1.65;margin:20px 0 0">Hola${t.contacto ? ' ' + esc(t.contacto) : ''},</p>
     <p style="font-size:15px;line-height:1.65">Contabilidad revisó el registro <b>${esc(t.consecutivo)}</b> de <b>${esc(t.nombre)}</b> y necesita que ajuste lo siguiente:</p>
-    <div style="background:${C.crema};border-left:3px solid #932553;padding:14px 16px;font-size:14.5px;line-height:1.65;white-space:pre-line;margin:14px 0">${esc(observaciones)}</div>
+    <div style="background:${C.crema};border-left:3px solid ${C.fucsia};padding:14px 16px;font-size:14.5px;line-height:1.65;white-space:pre-line;margin:14px 0">${esc(observaciones)}</div>
     ${pendientes.length ? `<p style="font-size:13px;color:${C.suave};margin:0 0 6px;letter-spacing:.08em;font-weight:bold">DOCUMENTOS POR REVISAR</p>
       <ul style="font-size:14px;line-height:1.7;margin:0 0 16px;padding-left:18px">${pendientes.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
     <p style="margin:20px 0">${boton('Corregir mi registro', url)}</p>
@@ -128,7 +129,7 @@ function enviarACumplimiento(t, rutaAnexo) {
     <p style="font-size:12.5px;color:${C.suave};letter-spacing:.1em;font-weight:bold;margin:0 0 8px">DOCUMENTOS ADJUNTOS · ${adjuntos.length} ARCHIVO${adjuntos.length === 1 ? '' : 'S'}</p>
     <table role="presentation" style="width:100%;font-size:13.5px;line-height:1.75;border-collapse:collapse">
       ${adjuntos.reduce((filas, a, i) => (i % 2 ? filas[filas.length - 1].push(a) : filas.push([a]), filas), [])
-        .map((fila) => `<tr>${fila.map((a) => `<td style="width:50%;padding:0 8px 0 0"><span style="color:#B37956">·</span> ${esc(a.filename)}</td>`).join('')}</tr>`).join('')}
+        .map((fila) => `<tr>${fila.map((a) => `<td style="width:50%;padding:0 8px 0 0"><span style="color:${C.cobre}">·</span> ${esc(a.filename)}</td>`).join('')}</tr>`).join('')}
     </table>
     <table role="presentation" style="margin-top:22px;border-collapse:collapse"><tr>
       ${t.sharepoint_url ? `<td style="padding-right:14px">${boton('Abrir expediente en SharePoint', t.sharepoint_url)}</td>` : ''}
@@ -140,4 +141,16 @@ function enviarACumplimiento(t, rutaAnexo) {
   });
 }
 
-module.exports = { smtpConfigurado, confirmarRadicado, devolverAlTercero, enviarACumplimiento };
+
+/** Avisa al Oficial de Cumplimiento que un expediente que se le envió fue reversado por Contabilidad. */
+function avisarReverso(t, motivo, usuario) {
+  const asunto = `[${t.consecutivo}] Aprobación reversada por Contabilidad — ${t.nombre}`;
+  const html = `
+    <p style="font-size:15px;line-height:1.65;margin:20px 0 0">Contabilidad <b>reversó la aprobación</b> del expediente <b>${esc(t.consecutivo)}</b> de <b>${esc(t.nombre)}</b>,
+      que se le había enviado para verificación. Por favor no tenga en cuenta el envío anterior; el expediente volvió a revisión y se le enviará de nuevo cuando quede aprobado.</p>
+    <div style="background:${C.crema};border-left:3px solid ${C.oxido};padding:14px 16px;font-size:14.5px;line-height:1.65;white-space:pre-line;margin:14px 0"><b>Motivo:</b> ${esc(motivo)}</div>
+    ${tablaDatos([['Consecutivo', t.consecutivo], ['Tipo de contraparte', tipoContraparte(t)], ['Reversado por', usuario]])}`;
+  return enviar(t, { tipo: 'reverso', para: config.oficial.email, cc: config.oficial.cc, asunto, html, texto: `Contabilidad reversó la aprobación de ${t.consecutivo}. Motivo: ${motivo}` });
+}
+
+module.exports = { smtpConfigurado, confirmarRadicado, devolverAlTercero, enviarACumplimiento, avisarReverso };

@@ -59,9 +59,16 @@ function revisarArchivos(categoria, persona, archivos) {
   const tipos = new Map(CAMPOS.anexosPara(categoria, persona).map((a) => [a.name, a]));
   const validos = [];
   const errores = {};
+  const cuenta = {};
+  for (const f of archivos || []) cuenta[f.fieldname] = (cuenta[f.fieldname] || 0) + 1;
   for (const f of archivos || []) {
     const def = tipos.get(f.fieldname);
     if (!def) { eliminarTemporales([f]); continue; }
+    if (cuenta[f.fieldname] > def.max) {
+      errores[f.fieldname] = `${def.label}: máximo ${def.max} archivo${def.max === 1 ? '' : 's'}.`;
+      eliminarTemporales([f]);
+      continue;
+    }
     const err = revisarArchivoEnDisco(f);
     if (err) {
       errores[f.fieldname] = `${f.originalname}: ${err}${def.ayudaError && err.includes('dañado') ? ' ' + def.ayudaError : ''}`;
@@ -75,7 +82,7 @@ function revisarArchivos(categoria, persona, archivos) {
 
 /**
  * Mueve los archivos al expediente con el nombre estándar ("PRO-2026-0042 - RUT.pdf").
- * Los anexos de un solo archivo reemplazan al anterior; los múltiples se numeran.
+ * Los anexos de un solo archivo reemplazan al anterior; los múltiples se numeran (1), (2)…
  */
 function guardarArchivos(t, archivos, usuario) {
   const defs = new Map(CAMPOS.anexosPara(t.categoria, t.persona).map((a) => [a.name, a]));
@@ -89,12 +96,13 @@ function guardarArchivos(t, archivos, usuario) {
 
   for (const [tipo, lista] of porTipo) {
     const def = defs.get(tipo);
-    const existentes = db.prepare('SELECT * FROM anexos WHERE tercero_id = ? AND tipo = ? ORDER BY id').all(t.id, tipo);
-    let n = existentes.length;
-    if (!def.multiple) {
+    let existentes = db.prepare('SELECT * FROM anexos WHERE tercero_id = ? AND tipo = ? ORDER BY id').all(t.id, tipo);
+    // Si con los nuevos se pasa del máximo permitido, los nuevos reemplazan a los anteriores.
+    if (existentes.length + lista.length > def.max) {
       for (const e of existentes) { borrarArchivoAnexo(t, e); reemplazados.push(e.nombre_archivo); }
-      n = 0;
+      existentes = [];
     }
+    let n = existentes.length;
     const numerar = def.multiple && existentes.length + lista.length > 1;
     if (numerar && existentes.length === 1 && !/\(\d+\)\.[^.]+$/.test(existentes[0].nombre_archivo)) {
       // El primero se guardó sin número; se renombra a (1) para mantener la serie.

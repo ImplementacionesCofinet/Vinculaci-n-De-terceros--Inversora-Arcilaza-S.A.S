@@ -9,7 +9,7 @@
 
 ## Flujo
 
-1. **El tercero** entra al portal, descarga el Word **FOR-DCF-001**, lo diligencia y firma. Luego indica su tipo (proveedor, contratista, cliente u otro) y si es persona jurídica o natural, llena los datos básicos y adjunta los documentos: 10 para persona jurídica y 6 para natural.
+1. **El tercero** entra al portal, descarga el Word **FOR-DCF-001**, lo diligencia y firma. Luego indica su tipo (proveedor, contratista, cliente u otro) y si es persona jurídica o natural, llena los datos básicos y adjunta los documentos en PDF: 10 para persona jurídica (A–J) y 5 para natural (A–E), cada uno con su límite de archivos.
    Cada archivo se revisa apenas se sube: los **vacíos, dañados o renombrados se rechazan** y el botón *Enviar registro* solo se habilita cuando todos los obligatorios están validados.
 2. El sistema asigna el **consecutivo** (`PRO-2026-0042`, `CLI-2026-0043`, `EMP-2026-0049`…). Es un solo número por año para todos los tipos y nadie lo escribe a mano. Los archivos quedan en:
    ```
@@ -20,6 +20,7 @@
 3. **Contabilidad** trabaja desde la **Bandeja de revisión**. Al abrir un expediente, este pasa a *En revisión*. Contabilidad transcribe del FOR-DCF-001 el representante legal, los datos bancarios y las declaraciones SAGRILAFT, y ve alertas por documento: faltantes, "solo se recibió una de las dos" o cámara de comercio con más de 30 días.
    - **Devolver al tercero**: envía las observaciones al correo del tercero junto con un enlace para reemplazar solo los documentos pedidos. Al corregir, el expediente vuelve a la bandeja.
    - **Aprobar y enviar a Cumplimiento**: envía automáticamente al Oficial de Cumplimiento un correo con los datos y todos los anexos adjuntos. El estado pasa a *En Cumplimiento*.
+   - **Reversar tercero**: si un expediente se aprobó, envió, devolvió o rechazó por error, lo regresa a *En revisión* con un motivo obligatorio. Si ya estaba en Cumplimiento, se avisa al Oficial que no tenga en cuenta el envío anterior.
 4. **Registro manual**: sirve para empleados o terceros que entregaron los documentos en físico. Tiene zona para arrastrar archivos, con la misma revisión del portal. Los empleados no llevan SAGRILAFT.
 5. Otras secciones:
    - **Por actualizar**: terceros aprobados hace más de 12 meses.

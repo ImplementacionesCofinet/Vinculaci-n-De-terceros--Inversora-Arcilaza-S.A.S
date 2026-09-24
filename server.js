@@ -281,6 +281,27 @@ api.post('/terceros/:id/reenviar-cumplimiento', async (req, res) => {
   res.status(envio.ok ? 200 : 400).json({ ok: envio.ok, errores: envio.ok ? undefined : [envio.error], correo: envio, tercero: T.obtener(t.id) });
 });
 
+// Reversar: devuelve a revisión un expediente aprobado, enviado a Cumplimiento, devuelto o rechazado por error.
+const REVERSIBLES = ['aprobado', 'en_cumplimiento', 'devuelto', 'rechazado'];
+api.post('/terceros/:id/reversar', async (req, res) => {
+  const t = T.obtener(idParam(req));
+  if (!t) return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] });
+  if (!REVERSIBLES.includes(t.estado)) return res.status(400).json({ ok: false, errores: ['Este expediente no tiene una acción que reversar'] });
+  const motivo = String(req.body?.motivo || '').trim();
+  if (!motivo) return res.status(400).json({ ok: false, errores: ['Indique el motivo del reverso'] });
+  const anterior = t.estado;
+  T.cambiarEstado(t.id, 'en_revision', { revisado_por: null, fecha_aprobacion: null, fecha_cumplimiento: null });
+  registrarHistorial(t.id, `${quien(req)} reversó el expediente (estaba "${CAMPOS.ESTADOS[anterior]}") y lo devolvió a revisión. Motivo: ${motivo}`, quien(req));
+  let aviso = null;
+  if (anterior === 'en_cumplimiento') {
+    aviso = await correo.avisarReverso(t, motivo, quien(req));
+    registrarHistorial(t.id, aviso.ok
+      ? `Se avisó al Oficial de Cumplimiento que no tenga en cuenta el envío anterior${aviso.estado === 'simulado' ? ' (correo simulado)' : ''}.`
+      : 'No se pudo avisar al Oficial de Cumplimiento: ' + aviso.error, quien(req));
+  }
+  res.json({ ok: true, correo: aviso, tercero: T.obtener(t.id) });
+});
+
 api.post('/terceros/:id/rechazar', (req, res) => {
   const t = T.obtener(idParam(req));
   if (!t) return res.status(404).json({ ok: false, errores: ['Expediente no encontrado'] });
